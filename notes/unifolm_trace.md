@@ -78,6 +78,18 @@ DiT denoising action model
     ↓
 Action chunk output
 
+## Core Functions
+
+| File | Function | Role |
+|---|---|---|
+| unifolm_vla.py | forward | training/eval forward path |
+| unifolm_vla.py | predict_action | inference action prediction entry |
+| DiT_ActionHeader.py | prepare_input | converts batch dict to BatchFeature |
+| DiT_ActionHeader.py | forward | training flow-matching loss path |
+| DiT_ActionHeader.py | predict_action | inference denoising loop |
+| cross_attention_dit.py | forward methods | DiT blocks / attention execution |
+| QWen2_5.py | forward | VLM feature extraction |
+
 ---
 
 ## Artifacts & Logs
