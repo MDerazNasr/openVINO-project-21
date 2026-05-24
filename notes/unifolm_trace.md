@@ -11,47 +11,50 @@
     - Executes `self.vla.predict_action(qwen_inputs)`.
     - Unnormalizes output actions back to physical units.
 
-### 2. Evaluation Script (LIBERO)
-- **File**: `openvino-vla/unifolm-vla/experiments/LIBERO/eval_libero.py`
-- **Purpose**: Orchestrates the evaluation loop, loading the environment (LIBERO) and feeding observations to the inference class.
+### 2. Model Implementation Framework
+- **File**: `openvino-vla/unifolm-vla/src/unifolm_vla/model/framework/unifolm_vla.py`
+- **Class**: `Unifolm_VLA`
+- **Architecture**:
+    - **VLM Backbone**: Qwen-VL (via `get_vlm_model`).
+    - **Action Head**: `FlowmatchingActionHead` (a Flow Matching DiT - Diffusion Transformer).
+- **Inference Logic (`predict_action`)**:
+    1. **VLM Forward**: Passes `input_ids`, `pixel_values`, etc., through Qwen-VL.
+    2. **Hidden State Extraction**: Extracts `last_hidden_states[-1]` from the VLM.
+    3. **Action Prediction**: Passes the VLM's last hidden state and the robot `state` (proprioception) to `self.action_model.predict_action`.
+    4. **Denoising**: The denoising/inference loop is internal to the `FlowmatchingActionHead`.
 
-### 3. Real-Time Model Server
-- **File**: `openvino-vla/unifolm-vla/deployment/model_server/run_real_eval_server.py`
-- **Purpose**: Provides a networked interface for inference, likely used for low-latency physical robot control.
+### 3. Supporting Scripts
+- **Evaluation Script (LIBERO)**: `openvino-vla/unifolm-vla/experiments/LIBERO/eval_libero.py`
+- **Model Server**: `openvino-vla/unifolm-vla/deployment/model_server/run_real_eval_server.py`
 
 ---
 
 ## Execution Flow (Trace)
 
 1. **Initialization**:
-   - `Unifolm_VLA.from_pretrained(...)` loads the weight and configuration.
-   - The model is moved to `DEVICE` (currently `CPU` on this machine).
-   - Weights are optionally cast to `bfloat16`.
+   - `Unifolm_VLA.from_pretrained(...)` initializes the Qwen-VL backbone and the Flow Matching head.
+   - The model is moved to `DEVICE` (currently `CPU`) and set to `eval()` mode.
 
 2. **Inference Loop (`step`)**:
    - **Pre-processing**: 
-     - Images are handled via a history buffer (`deque` with `maxlen=horizon`).
-     - Proprioceptive state is normalized using statistics gathered from the dataset.
+     - Proprioceptive state is normalized.
+     - VLM-specific inputs (`input_ids`, `pixel_values`, `image_grid_thw`) are prepared.
    - **Model Forward Pass**: 
-     - The `predict_action` method of `Unifolm_VLA` is called.
-     - This involves the Qwen-based Vision-Language Model processing the vision/text tokens.
+     - **VLM Phase**: Qwen-VL processes multimodal inputs to produce a rich hidden representation.
+     - **Action Phase**: `FlowmatchingActionHead` uses the VLM representation as a condition to predict actions via a flow-matching (diffusion-like) process.
    - **Post-processing**:
-     - Raw action tokens are converted back to continuous robotic control values (unnormalization).
+     - Actions are unnormalized and returned for robot execution.
 
 ---
 
 ## OpenVINO Optimization Candidates
 
-- **Model Conversion Target**: The `predict_action` method in `Unifolm_VLA` (defined in `src/unifolm_vla/model/framework/unifolm_vla.py`).
-- **Input Tensors**:
-    - `image`: Vision tokens or raw pixel data.
-    - `state`: Proprioceptive robot state.
-    - `text`: Task instructions.
-- **Output Tensors**:
-    - `normalized_actions`: Predicted robotic actions.
+- **VLM Pipeline**: Qwen-VL is the most compute-intensive part. Converting the transformer backbone to OpenVINO (using `optimum-intel` or `ovc`) is a priority.
+- **Flow Matching Head**: `FlowmatchingActionHead` contains the denoising/inference loop. This might require custom export logic if it involves iterative loops.
+- **Data Types**: The original code uses `bfloat16` for the VLM and `float32` for the action head.
 
 ---
 
 ## Artifacts & Logs
-- `openvino-vla/unifolm-vla/scripts/eval_scripts/run_eval_libero.sh` (Shell entry point)
-- `openvino-vla/unifolm-vla/experiments/logs/` (Contains execution results/metrics)
+- `openvino-vla/unifolm-vla/scripts/eval_scripts/run_eval_libero.sh`
+- `openvino-vla/unifolm-vla/experiments/logs/`
