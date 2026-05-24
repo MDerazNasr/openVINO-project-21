@@ -53,8 +53,11 @@
 - **Flow Matching Head**: `FlowmatchingActionHead` contains the denoising/inference loop. This might require custom export logic if it involves iterative loops.
 - **Data Types**: The original code uses `bfloat16` for the VLM and `float32` for the action head.
 
----
-
-## Artifacts & Logs
-- `openvino-vla/unifolm-vla/scripts/eval_scripts/run_eval_libero.sh`
-- `openvino-vla/unifolm-vla/experiments/logs/`
+## Inference Call Chain
+1. **LIBERO script starts at**: `openvino-vla/unifolm-vla/experiments/LIBERO/eval_libero.py` (which orchestrates the rollout loop).
+2. **Model loaded by**: `Unifolm_VLA.from_pretrained` (called in the `__init__` of `Unifolm_VLA_Inference` within `unifolm_vla_inference.py`).
+3. **Input batch prepared by**: `Unifolm_VLA_Inference.step` (performs proprioception normalization and tensor conversion).
+4. **Main VLA forward/action call**: `Unifolm_VLA.predict_action` in `openvino-vla/unifolm-vla/src/unifolm_vla/model/framework/unifolm_vla.py`.
+5. **DiT action head call**: `FlowmatchingActionHead.predict_action` in `openvino-vla/unifolm-vla/src/unifolm_vla/model/modules/action_model/DiT_ActionHeader.py`.
+6. **Denoising loop**: `for t in range(num_steps):` at line 251 of `DiT_ActionHeader.py`.
+7. **Final action output**: The `step` method in `unifolm_vla_inference.py` unnormalizes the model's output and returns the physical robot actions.
