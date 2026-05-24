@@ -61,3 +61,25 @@
 5. **DiT action head call**: `FlowmatchingActionHead.predict_action` in `openvino-vla/unifolm-vla/src/unifolm_vla/model/modules/action_model/DiT_ActionHeader.py`.
 6. **Denoising loop**: `for t in range(num_steps):` at line 251 of `DiT_ActionHeader.py`.
 7. **Final action output**: The `step` method in `unifolm_vla_inference.py` unnormalizes the model's output and returns the physical robot actions.
+
+## Current Architecture Understanding
+
+Input observation / image / instruction
+    ↓
+LIBERO inference script
+    ↓
+UnifolmVLA model wrapper
+    ↓
+VLM backbone / feature extraction
+    ↓
+Action head preparation
+    ↓
+DiT denoising action model
+    ↓
+Action chunk output
+
+---
+
+## Artifacts & Logs
+- `openvino-vla/unifolm-vla/scripts/eval_scripts/run_eval_libero.sh`
+- `openvino-vla/unifolm-vla/experiments/logs/`
