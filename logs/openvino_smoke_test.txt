@@ -1,0 +1,52 @@
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.00034715235
+CPU latency ms: 10.972082993248478
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.00035716593
+CPU latency ms: 1.2916249979753047
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.00033418834
+CPU latency ms: 0.4496249894145876
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.00026485324
+CPU latency ms: 0.6278329965425655
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.0004698485
+CPU latency ms: 1.0235840018140152
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.00039947033
+CPU latency ms: 0.4461670032469556
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.00040075183
+CPU latency ms: 0.4235420055920258
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.0003614202
+CPU latency ms: 0.6796669913455844
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.00046429038
+CPU latency ms: 0.7213329954538494
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.0005237758
+CPU latency ms: 0.8331249991897494
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.0004747063
+CPU latency ms: 0.48850000894162804
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.00031262636
+CPU latency ms: 1.1391669977456331
+OpenVINO smoke test passed
+Output shape: (1, 8)
+Max abs diff vs PyTorch: 0.00022903085
+CPU latency ms: 2.103958002408035

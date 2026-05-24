@@ -1,0 +1,4 @@
+Available devices: ['CPU']
+
+Device: CPU
+Apple M4

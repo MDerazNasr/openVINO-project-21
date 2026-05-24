@@ -1,0 +1,3 @@
+Python 3.12.13
+pip 26.1.1 from /Users/mderaznasr/Documents/GitHub/openVINO-project-21/.venv/lib/python3.12/site-packages/pip (python 3.12)
+OpenVINO: 2026.1.0-21367-63e31528c62-releases/2026/1
