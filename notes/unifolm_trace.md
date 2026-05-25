@@ -149,7 +149,7 @@ This appears inside transformer blocks and again in the final output modulation.
 - **Final output modulation**
 - **Repeated execution** across `num_inference_timesteps`
 
-## Inference Shape Trace (B=1, L=512, H=2048)
+## Inference Shape Trace (G1 Configuration: B=1, L=512, H=2048)
 
 - **Qwen output last_hidden**: `[1, 512, 2048]`, `torch.bfloat16` (during real inference)
 - **Initial actions (noise)**: `[1, 25, 23]`, `torch.float32`
@@ -159,6 +159,20 @@ This appears inside transformer blocks and again in the final output modulation.
 - **DiT output**: `[1, 58, 1024]`
 - **pred_velocity**: `[1, 25, 23]`
 - **Final actions**: `[1, 25, 23]`
+
+## Inference Shape Trace (LIBERO Configuration: B=1, Horizon=8)
+
+- **VLM Output (vl_embs)**: `[1, 512, 2048]`
+- **Robot State**: `[1, 1, 8]`
+- **Initial Action Noise**: `[1, 8, 7]`
+- **State Features**: `[1, 1, 1536]`
+- **Action Features**: `[1, 8, 1536]`
+- **Future Tokens**: `[1, 32, 1536]`
+- **sa_embs (Joint Sequence)**: `[1, 41, 1536]`
+    - Sequence composition: 1 (state) + 32 (future tokens) + 8 (action features) = 41.
+- **DiT Model Output**: `[1, 41, 1024]`
+- **Predicted Velocity**: `[1, 8, 7]`
+- **Final Action Result**: `[1, 8, 7]`
 
 ---
 
