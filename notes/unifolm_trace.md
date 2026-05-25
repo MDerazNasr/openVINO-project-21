@@ -149,6 +149,17 @@ This appears inside transformer blocks and again in the final output modulation.
 - **Final output modulation**
 - **Repeated execution** across `num_inference_timesteps`
 
+## Inference Shape Trace (B=1, L=512, H=2048)
+
+- **Qwen output last_hidden**: `[1, 512, 2048]`, `torch.bfloat16` (during real inference)
+- **Initial actions (noise)**: `[1, 25, 23]`, `torch.float32`
+- **Action features**: `[1, 25, 1536]`
+- **sa_embs**: `[1, 58, 1536]`
+    - Sequence composition: 1 (state) + 32 (future tokens) + 25 (action features) = 58.
+- **DiT output**: `[1, 58, 1024]`
+- **pred_velocity**: `[1, 25, 23]`
+- **Final actions**: `[1, 25, 23]`
+
 ---
 
 ## Artifacts & Logs
