@@ -189,6 +189,15 @@ This appears inside transformer blocks and again in the final output modulation.
 - **Control Flow**: Keep the denoising scheduler loop external to the OpenVINO graph.
 - **Compute**: Export one denoising step as a reusable, compiled OpenVINO graph to minimize memory movement and maximize throughput.
 
+## Benchmark Summary (CPU Baseline)
+
+| Runtime | Single-Step Mean | Total Loop (4 steps) | Gain vs PT |
+|---|---|---|---|
+| **PyTorch** | 132.52 ms | ~530 ms | Baseline |
+| **OpenVINO** | **105.97 ms** | **418.70 ms** | **~20%** |
+
+**Observation**: OpenVINO provides a clear performance win on the CPU while maintaining higher stability (lower jitter) compared to PyTorch.
+
 ---
 
 ## Artifacts & Logs
