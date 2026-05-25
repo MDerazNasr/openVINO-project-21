@@ -125,22 +125,29 @@ pred_velocity
 - **Adaptive Normalization**: `AdaLayerNorm` modulates hidden states by applying scale and shift derived from the timestep embedding.
 - **Timestep Modulation**: Linear layers in the output block perform a final scale/shift of the transformer features before the action projection.
 
-## DiT Runtime Bottleneck Hypotheses
+## CrossAttentionDiT Findings
 
-The expensive path is likely:
+The DiT action model is built around repeated transformer blocks. The important classes are:
 
-DiT_ActionHeader.predict_action
-  → self.model(...)
-  → repeated CrossAttentionDiT blocks
-  → attention + normalization + MLP
-  → repeated once per denoising timestep
+- `TimestepEncoder`: creates timestep embeddings for denoising steps.
+- `AdaLayerNorm`: timestep-conditioned normalization.
+- `BasicTransformerBlock`: applies normalization, attention, residual update, and feed-forward layers.
+- `DiT`: stacks transformer blocks and applies final output modulation.
+- `SelfAttentionTransformer`: related transformer variant.
 
-Likely bottlenecks:
-- Cross-attention over VLM token sequence
-- Self-attention over state/future/action tokens
-- MLP/linear layers inside each DiT block
-- AdaLayerNorm / timestep-conditioned modulation
-- Repeated kernel dispatch across num_inference_timesteps
+The key optimization target is `AdaLayerNorm`, which implements:
+
+`LayerNorm(x) * (1 + scale(timestep)) + shift(timestep)`
+
+This appears inside transformer blocks and again in the final output modulation. Because the DiT model is executed once per denoising timestep, this pattern may occur many times per action prediction. If unfused, it can create repeated memory movement and kernel launch overhead.
+
+## Likely DiT Runtime Hotspots
+
+- **Attention** inside `BasicTransformerBlock`
+- **FeedForward layers** inside transformer blocks
+- **AdaLayerNorm / LayerNorm modulation** (pattern found at lines 49-51 and 284-285)
+- **Final output modulation**
+- **Repeated execution** across `num_inference_timesteps`
 
 ---
 
