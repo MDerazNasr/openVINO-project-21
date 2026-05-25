@@ -7,6 +7,8 @@ class SingleStepDiTWrapper(nn.Module):
         self.action_model = action_model
 
     def forward(self, vl_embs, actions, state, timesteps_tensor):
+        # We now expect 'actions' to be the input noise/trajectory passed from outside
+        # to ensure deterministic parity with OpenVINO.
         action_features = self.action_model.action_encoder(actions, timesteps_tensor)
 
         if self.action_model.config.add_pos_embed:
