@@ -90,6 +90,13 @@ Action chunk output
 | cross_attention_dit.py | forward methods | DiT blocks / attention execution |
 | QWen2_5.py | forward | VLM feature extraction |
 
+## CrossAttentionDiT Classes
+- **Class 1**: `TimestepEncoder` (Line 16) - Encodes discrete timesteps into continuous embeddings.
+- **Class 2**: `AdaLayerNorm` (Line 29) - Adaptive Layer Normalization conditioned on timestep embeddings.
+- **Class 3**: `BasicTransformerBlock` (Line 55) - The fundamental compute unit containing self/cross-attention and feed-forward layers.
+- **Class 4**: `DiT` (Line 175) - The main Diffusion Transformer model that chains multiple transformer blocks.
+- **Class 5**: `SelfAttentionTransformer` (Line 290) - A variant of the transformer focused on self-attention.
+
 ---
 
 ## Artifacts & Logs
