@@ -174,6 +174,21 @@ This appears inside transformer blocks and again in the final output modulation.
 - **Predicted Velocity**: `[1, 8, 7]`
 - **Final Action Result**: `[1, 8, 7]`
 
+## Single-Step DiT Export Result
+
+**Result**:
+- Successfully exported single-step DiT wrapper to OpenVINO IR.
+
+**Key Observation**:
+- The core DiT compute graph (including cross-attention, transformer blocks, and adaptive normalization) is fully exportable once the iterative Python denoising loop is removed from the exported graph boundary.
+
+**Implication**:
+- The main export blocker for this architecture is orchestration/control flow (the integration loop) rather than the transformer compute itself.
+
+**Current Strategy**:
+- **Control Flow**: Keep the denoising scheduler loop external to the OpenVINO graph.
+- **Compute**: Export one denoising step as a reusable, compiled OpenVINO graph to minimize memory movement and maximize throughput.
+
 ---
 
 ## Artifacts & Logs
