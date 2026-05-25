@@ -1,122 +1,103 @@
-# Export Blocker Report
+# Export Blocker Report — unifolm-vla OpenVINO
 
-## Blocker 1 — Python denoising loop
-Location: DiT_ActionHeader.py:251
+## Repository
+- URL: https://github.com/MDerazNasr/openVINO-project-21.git
+- Commit: d2bd049338a0ae09b0879a110893d7ec4c633fd0
+
+## Summary
+I traced the inference path and confirmed that the VLA action generation path is:
+
+Qwen2.5-VL embeddings → DiT action head → iterative denoising loop → action chunk.
+
+The main export strategy is to avoid exporting the full Python denoising loop and instead export a single DiT denoising step with explicit tensor inputs.
+
+## Blocker 1 — Python Denoising Loop
+Location:
+- `DiT_ActionHeader.py:251`
 
 Problem:
-- `predict_action()` loops over `num_inference_timesteps`.
-- If exported as one graph, tracing may unroll the DiT N times.
-- Better approach: export a single DiT denoising step and keep the loop outside the graph initially.
+- Full `predict_action()` loops over denoising timesteps in Python.
+- Exporting the full loop risks unrolling the DiT N times into one large static graph.
 
 Experiment:
-- Try exporting full `predict_action()`.
-- Try exporting single-step wrapper.
-
-## Fix Strategy — Single-Step Wrapper
-
-The intended fix is to create a wrapper that encapsulates exactly one iteration of the Euler integration step.
-
-**Inputs**:
-- `actions`: Current action trajectory [B, Horizon, ActionDim]
-- `vl_embs`: VLM context embeddings [B, L, H]
-- `state`: Robot proprioception [B, 1, StateDim]
-- `timestep`: Scalar discrete timestep [B]
-
-**Output**:
-- `updated_actions` (Post-Euler integration) or `pred_velocity` (Raw flow prediction)
-
-**Advantages**:
-- Prevents the tracer from unrolling the loop $N$ times into a massive static graph.
-- Allows for dynamic selection of `num_inference_timesteps` at runtime (outside the model graph).
-- Simplifies kernel optimization for the core DiT block.
-
-## Blocker 2 — torch.randn inside inference path
-Location: `DiT_ActionHeader.py:239`
-
-**Problem**:
-- Initial noise for the action trajectory is generated inside `predict_action`.
-- Stochastic tensor creation inside a static graph can cause non-determinism during optimization or require complex OpenVINO extensions.
-
-**Planned Fix**:
-- Modify the export wrapper to accept the initial `actions` noise as an external input tensor.
-- The caller (CPU side) will generate the noise once per action chunk and pass it into the compiled OpenVINO graph.
-
-## Blocker 3 — autocast in forward path
-Location: `unifolm_vla.py:46, 57, 85, 98`
-
-**Problem**:
-- `torch.autocast` context managers are used to handle `bfloat16` and `float32` mixed precision at runtime.
-- These context managers are runtime-specific and may be ignored or cause errors during static graph tracing.
-
-**Planned Fix**:
-- Remove `autocast` from the export-specific wrappers.
-- Explicitly cast tensors to required dtypes (e.g., `.to(torch.float32)`) at the graph boundaries.
-- Leverage OpenVINO's native precision configuration (FP16/INT8) during model compilation.
-
-## Blocker 4 — BatchFeature boundary
-Location: `DiT_ActionHeader.py:186`
-
-**Problem**:
-- The model uses HuggingFace `BatchFeature` containers (essentially dictionaries) to pass data.
-- Static graph tracers (TorchScript/ONNX) expect standard Tensors, Lists, or Tuples. Custom dict-like containers create boundary errors.
-
-**Planned Fix**:
-- Design the OpenVINO export wrappers with explicit tensor-only arguments.
-- Unpack `BatchFeature` objects into a dictionary of primitive tensors before the export boundary.
-
-## Single-step DiT Export Attempt
-
-**Goal**:
-Export only one DiT denoising step instead of the full iterative loop to avoid graph unrolling.
-
-**Inputs**:
-- `vl_embs` [1, 512, 2048]
-- `actions` [1, 8, 7]
-- `state` [1, 1, 8]
-- `timesteps_tensor` [1]
-
-**Output**:
-- `pred_velocity` [1, 8, 7]
-
-**Result**: **SUCCESS** ✅
-
-**Details**:
-- The model was successfully converted using `ov.convert_model`.
-- The IR files (`single_step_dit.xml` and `single_step_dit.bin`) were generated in `export_tests/`.
-- **Note**: The conversion requires the correct robot platform argument (e.g., `libero`) to be passed during execution to ensure model internal constants match the input shapes.
-
-## What counts as success here
-
-## IR Runtime Validation
+- Created `SingleStepDiTWrapper`.
+- Exported one DiT denoising step.
 
 Result:
-- **Successfully loaded** single-step DiT OpenVINO IR.
-- **Successfully compiled** on CPU.
-- **Successfully ran** dummy inference with traced LIBERO shapes.
-- **Output shape**: `(1, 8, 7)` (matches expected action chunk).
+- Success: generated OpenVINO IR for single-step DiT.
 
-Latency:
-- **CPU single-step latency**: 117.110 ms
+Implication:
+- Core DiT compute graph is exportable.
+- Main blocker is orchestration/control flow, not the transformer compute graph.
 
-## IR Operator Inspection
+Next:
+- Keep denoising loop outside the exported graph initially.
+- Reuse compiled single-step DiT graph across timesteps.
 
-Top operator types:
-- **Constant**: 453
-- **Convert**: 272
-- **Add**: 191
-- **MatMul**: 123
-- **MVN**: 33
-- **Multiply**: 20
-- **ScaledDotProductAttention**: 16
-- **Gelu**: 16
+## Blocker 2 — torch.randn In Inference Path
+Location:
+- `DiT_ActionHeader.py:239`
 
-Initial observations:
-- **AdaLayerNorm** appears to be represented as a decomposed sequence:
-    - `MVN` (Mean Variance Normalization) + `Multiply` + `Add` (for static LayerNorm).
-    - `MatMul` + `Swish` + `VariadicSplit` (for timestep embedding logic).
-    - Final modulation: `Multiply` + `Add` using chunks from the linear projection.
-- **Attention** appears to be **fused** into the high-level `ScaledDotProductAttention` operator (16 occurrences matches the 16 DiT layers).
-- This supports the later profiling/fusion work because:
-    - We have a clear baseline for single-step latency (117ms).
-    - The `ScaledDotProductAttention` is already optimized, but the 33 `MVN` ops + surrounding math for adaptive normalization show clear potential for fusion into a single `AdaLayerNorm` kernel to reduce memory overhead.
+Problem:
+- `predict_action()` creates initial action noise internally.
+- Random tensor generation should not be inside exported graph boundary.
 
+Fix Direction:
+- Accept initial action noise as explicit input to wrapper.
+
+Status:
+- Addressed in single-step wrapper design.
+
+## Blocker 3 — autocast In Forward Path
+Location:
+- `unifolm_vla.py:46,57,85,98`
+
+Problem:
+- Precision context managers are embedded inside model logic.
+- OpenVINO export should use explicit tensor dtypes and runtime/compile precision settings.
+
+Fix Direction:
+- Export wrapper avoids autocast.
+- Later use OpenVINO compile configs for BF16/FP32 behavior.
+
+Status:
+- Partially addressed for single-step wrapper.
+
+## Blocker 4 — BatchFeature Boundary
+Location:
+- `DiT_ActionHeader.py:186`
+
+Problem:
+- HF `BatchFeature`/dict containers are not clean graph inputs.
+
+Fix Direction:
+- Use tensor-in/tensor-out wrapper boundaries.
+
+Status:
+- Addressed for single-step DiT wrapper.
+
+## IR Validation
+- IR generated: Yes (`single_step_dit.xml`, `single_step_dit.bin`)
+- IR loaded: Yes
+- CPU compile: Yes
+- Dummy inference: Yes
+- Output shape: `(1, 8, 7)`
+- CPU latency: 117.110 ms
+
+## Operator Inspection
+Top operators:
+- Constant: 453
+- Convert: 272
+- Add: 191
+- MatMul: 123
+- MVN: 33
+- ScaledDotProductAttention: 16
+
+AdaLayerNorm representation:
+- Decomposed into `MVN` (33 occurrences), `Multiply`, `Add`, and `VariadicSplit` logic.
+
+Attention representation:
+- Fused into `ScaledDotProductAttention` (16 occurrences).
+
+## Current Conclusion
+The single-step DiT export path is viable. The next step is to compare PyTorch wrapper output against OpenVINO output numerically, then build an external denoising loop that repeatedly calls the compiled OpenVINO step.
