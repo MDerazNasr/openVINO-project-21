@@ -14,12 +14,15 @@ This document details the instrumentation added to the UnifoLM-VLA codebase to t
 - **Tensors**: `last_hidden` (hidden states from Qwen backbone).
 
 ### 2. `src/unifolm_vla/model/modules/action_model/DiT_ActionHeader.py`
-- Added traces for the primary action prediction loop.
-- **Tensors**: 
-    - `actions` (initial noise)
-    - `action_features` (encoded actions)
-    - `sa_embs` (concatenated state + query + action tokens)
-    - `pred_velocity` (raw model output for Euler step)
+- **Standardized Helper**: Introduced `_trace_tensor(name, x)` to log shape, dtype, and device.
+- **Denoising Step Headers**: Added headers for the first and last steps (e.g., `[TRACE] denoising step 1/4`).
+- **Traced Tensors**: 
+    - `vl_embs`, `state` (Inputs)
+    - `initial actions` (Noise)
+    - `state_features`, `action_features`, `future_tokens` (Embeddings)
+    - `sa_embs` (Joint sequence)
+    - `model_output`, `pred`, `pred_velocity` (Predictions)
+    - `updated actions` (Post-integration)
 
 ### 3. `src/unifolm_vla/model/modules/action_model/flow_matching_modules/cross_attention_dit.py`
 - Added hooks for internal DiT forward pass monitoring.
