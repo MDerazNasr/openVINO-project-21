@@ -125,6 +125,23 @@ pred_velocity
 - **Adaptive Normalization**: `AdaLayerNorm` modulates hidden states by applying scale and shift derived from the timestep embedding.
 - **Timestep Modulation**: Linear layers in the output block perform a final scale/shift of the transformer features before the action projection.
 
+## DiT Runtime Bottleneck Hypotheses
+
+The expensive path is likely:
+
+DiT_ActionHeader.predict_action
+  → self.model(...)
+  → repeated CrossAttentionDiT blocks
+  → attention + normalization + MLP
+  → repeated once per denoising timestep
+
+Likely bottlenecks:
+- Cross-attention over VLM token sequence
+- Self-attention over state/future/action tokens
+- MLP/linear layers inside each DiT block
+- AdaLayerNorm / timestep-conditioned modulation
+- Repeated kernel dispatch across num_inference_timesteps
+
 ---
 
 ## Artifacts & Logs
