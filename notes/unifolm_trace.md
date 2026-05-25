@@ -97,6 +97,34 @@ Action chunk output
 - **Class 4**: `DiT` (Line 175) - The main Diffusion Transformer model that chains multiple transformer blocks.
 - **Class 5**: `SelfAttentionTransformer` (Line 290) - A variant of the transformer focused on self-attention.
 
+## DiT Block Flow
+
+```text
+sa_embs (state + learning queries + action features)
+  ↓
+timestep embedding (sinusoidal)
+  ↓
+[DiT Block 1 to N]
+    - AdaLayerNorm (modulated by timestep)
+    - Self-attention (over action/state tokens)
+    - Cross-attention (conditioned on VLM embeddings)
+    - Residual Add
+    - LayerNorm + MLP (FeedForward)
+    - Residual Add
+  ↓
+Final Output Norm
+  ↓
+action_decoder (MLP)
+  ↓
+pred_velocity
+```
+
+## Key Compute Operations (DiT)
+
+- **Self & Cross Attention**: Handled by `BasicTransformerBlock.attn1`. It switches between self and cross attention based on the presence of `encoder_hidden_states`.
+- **Adaptive Normalization**: `AdaLayerNorm` modulates hidden states by applying scale and shift derived from the timestep embedding.
+- **Timestep Modulation**: Linear layers in the output block perform a final scale/shift of the transformer features before the action projection.
+
 ---
 
 ## Artifacts & Logs
