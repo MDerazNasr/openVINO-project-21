@@ -2,7 +2,7 @@
 
 This repository focuses on the architectural tracing, export validation, and OpenVINO runtime optimization of the Unitree UnifoLM-VLA (Vision-Language-Action) model for robotic control.
 
-## 🚀 Project Status: Milestone 1 Complete
+##  Project Status: Milestone 1 Complete
 We have successfully decoupled the iterative Flow Matching denoising loop from the core Transformer compute, enabling the first successful OpenVINO IR export of the DiT Action Head.
 
 ### Key Achievements
@@ -14,7 +14,7 @@ We have successfully decoupled the iterative Flow Matching denoising loop from t
 
 ---
 
-## 📁 Repository Structure
+##  Repository Structure
 
 - `openvino-vla/unifolm-vla/`: Submodule containing the target model source code.
 - `export_tests/`: Core experimental scripts for conversion, validation, and benchmarking.
@@ -30,7 +30,7 @@ We have successfully decoupled the iterative Flow Matching denoising loop from t
 
 ---
 
-## 🧭 Mentor Navigation Guide
+## Mentor Navigation Guide
 
 If you are reviewing this repository for the first time, we recommend the following path:
 
@@ -45,14 +45,14 @@ If you are reviewing this repository for the first time, we recommend the follow
 
 ---
 
-## 🛠️ Environment Setup
 
+## Environment Setup
 This project requires **Python 3.10** (due to specific dependency constraints of the VLA backbone).
 
 ```bash
 # Setup Venv
 python3.10 -m venv .venv
-source .venv/bin/activate
+surce .venv/bin/activate
 pip install -r requirements.txt
 
 # Setup Model Source
@@ -61,7 +61,7 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)/openvino-vla/unifolm-vla/src
 
 ---
 
-## 📈 Roadmap
+## Roadmap
 - [ ] Implement OpenVINO `Loop` operator to move integration logic entirely into the IR.
 - [ ] Fuse `AdaLayerNorm` operations to reduce memory movement.
 - [ ] Profile cross-attention bottlenecks on Intel GPU/NPU hardware.
