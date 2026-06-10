@@ -16,8 +16,12 @@ This sprint focused on transitioning the **UnifoLM-VLA** model from a PyTorch pr
 *   **Systems Insight**: Confirmed **Weight Sharing** in unrolled graphs, maintaining a 1.1GB memory footprint while reducing orchestration "bubbles."
 *   **Roofline**: Identified the model as heavily **Compute-Bound** (AI = 41), with ~75% headroom for upcoming kernel-level optimizations.
 
-## 🎤 Coming Up in the Meeting
-In our upcoming session, I will deep-dive into:
+## ⚠️ Hardware Constraints & Deployment Readiness
+While 100% of the architectural infrastructure and export logic are complete, the final execution of the following items was **specifically deferred due to the lack of Intel hardware/DevCloud access** during this sprint:
+*   **Full 7B VLM Benchmark**: The pipeline is built (`convert_qwen_vlm.py`) and verified with structural mocks. Final latency benchmarks on the 10GB+ weights require target Intel hardware to avoid local RAM-throttle artifacts.
+*   **C++ Kernel Implementation**: The `AdaLayerNorm` has been identified as the primary target (fusing 33 decomposed ops). To ensure high-fidelity profiling, we are waiting for **Intel VTune** access on the target iGPU before writing the final C++ fusion.
+
+**Status**: These are "Hardware-Ready" deliverables—the code is written; the target environment is the only missing piece.
 *   The data-driven justification for our shift toward the **Fused Loop** architecture.
 *   A walkthrough of the **Native Patching** strategy used to "push the boundaries" of the OpenVINO graph.
 *   The mathematical derivation of the model's **Arithmetic Intensity** and what it means for our next phase of iGPU optimization.

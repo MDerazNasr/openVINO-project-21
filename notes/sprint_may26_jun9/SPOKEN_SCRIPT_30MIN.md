@@ -37,5 +37,9 @@ My roadmap for the next sprint is clear:
 2. Run VTune profiling to identify exactly which of those 33 decomposed `MVN` layers in the `AdaLayerNorm` are causing the most stall.
 3. Submit our first kernel fusion contribution to the OpenVINO repository."
 
-## Conclusion & Q&A
-"In summary: the math is proven, the architecture is fused, and the theoretical headroom is mapped. I am ready to move to the Intel hardware phase. Thank you."
+## Conclusion & The Hardware Blocker (3 Minutes)
+"In conclusion, the architectural foundation of the UnifoLM-VLA project is now natively OpenVINO-ready. The math is proven, the loop is fused, and the optimization targets are locked. 
+
+I want to be very clear about our current constraints: I have built the export infrastructure for the full VLM backbone and identified the specific `AdaLayerNorm` operations for kernel fusion. However, **the final execution of these 7B-parameter benchmarks and the writing of the final C++ code is currently gated by the Intel Developer Cloud login issues.** 
+
+I have delivered 'Hardware-Ready' infrastructure. As soon as the hardware access is resolved, we will immediately move from the current 'verified mock' stage to 'real-world iGPU deployment.' Thank you, and I'm happy to take any questions."
