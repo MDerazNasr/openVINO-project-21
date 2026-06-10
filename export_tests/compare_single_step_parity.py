@@ -14,6 +14,10 @@ from single_step_dit_wrapper import SingleStepDiTWrapper
 IR_PATH = "/Users/mderaznasr/Documents/GitHub/openVINO-project-21/artifacts/openvino_ir/single_step_dit.xml"
 
 def main():
+    print("[INFO] Enforcing strict determinism...")
+    torch.manual_seed(42)
+    np.random.seed(42)
+
     print("[INFO] Loading PyTorch model...")
     config_path = "/Users/mderaznasr/Documents/GitHub/openVINO-project-21/openvino-vla/unifolm-vla/src/unifolm_vla/config/training/unifolm_vla_train.yaml"
     config = OmegaConf.load(config_path)
@@ -24,7 +28,8 @@ def main():
     wrapper.eval() # Ensure dropout is disabled
 
     print("[INFO] Creating SAME dummy inputs used for trace...")
-    torch.manual_seed(0)
+    # Re-seeding just in case, though global seed should cover it
+    torch.manual_seed(42)
     batch_size = 1
     seq_len = 512
     vl_dim = 2048
@@ -107,14 +112,23 @@ def main():
 
     # 5. Compare
     diff = np.abs(torch_out - ov_out)
+    mae = float(diff.mean())
+    mse = float((diff ** 2).mean())
 
     print("\n--- Numerical Parity Results ---")
-    print("PyTorch output shape: ", torch_out.shape)
-    print("OpenVINO output shape:", ov_out.shape)
-    print("Max abs diff:         ", diff.max())
-    print("Mean abs diff:        ", diff.mean())
-    print("Allclose atol=1e-4:   ", np.allclose(torch_out, ov_out, atol=1e-4, rtol=1e-4))
-    print("Allclose atol=1e-3:   ", np.allclose(torch_out, ov_out, atol=1e-3, rtol=1e-3))
+    print(f"PyTorch output shape:  {torch_out.shape}")
+    print(f"OpenVINO output shape: {ov_out.shape}")
+    print(f"Max abs diff:          {diff.max():.8f}")
+    print(f"Mean Abs Error (MAE):  {mae:.8f}")
+    print(f"Mean Sq Error (MSE):   {mse:.8f}")
+    print(f"Allclose atol=1e-4:    {np.allclose(torch_out, ov_out, atol=1e-4, rtol=1e-4)}")
+    print(f"Allclose atol=1e-3:    {np.allclose(torch_out, ov_out, atol=1e-3, rtol=1e-3)}")
+
+    # Strict Mentor Validation Targets
+    print("\n--- Mentor Target Validation ---")
+    mse_percent = mse * 100
+    print(f"Target 1: MSE < 0.1%      -> {mse_percent:.6f}% {'[PASS]' if mse_percent < 0.1 else '[FAIL]'}")
+    print(f"Target 2: MAE < 1e-3      -> {mae:.8f} {'[PASS]' if mae < 1e-3 else '[FAIL]'}")
 
 
 if __name__ == "__main__":

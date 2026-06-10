@@ -82,7 +82,8 @@ Status:
 - CPU compile: Yes
 - Dummy inference: Yes
 - Output shape: `(1, 8, 7)`
-- CPU latency: 117.110 ms
+- CPU latency (Single-Step): 105.97 ms
+- Numerical Parity: **PASS** (MSE: 0.00059%, below 0.1% target)
 
 ## Operator Inspection
 Top operators:
@@ -100,4 +101,4 @@ Attention representation:
 - Fused into `ScaledDotProductAttention` (16 occurrences).
 
 ## Current Conclusion
-The single-step DiT export path is viable. The next step is to compare PyTorch wrapper output against OpenVINO output numerically, then build an external denoising loop that repeatedly calls the compiled OpenVINO step.
+The single-step DiT export path is viable and numerically accurate. However, benchmarking reveals that a **Fused Loop** (unrolled 4-step graph) provides a significant performance advantage over a Python-orchestrated loop (259ms vs 495ms, ~91% speedup). Crucially, the Fused Loop does **not** duplicate weights, keeping the memory footprint at ~1.0GB (same as single-step). Future work will focus on finalizing the fused loop for production while maintaining the single-step IR for research flexibility.

@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import openvino as ov
 import sys
 import os
@@ -11,6 +12,10 @@ from unifolm_vla.model.modules.action_model.DiT_ActionHeader import get_action_m
 from single_step_dit_wrapper import SingleStepDiTWrapper
 
 def main():
+    print("[INFO] Enforcing strict determinism...")
+    torch.manual_seed(42)
+    np.random.seed(42)
+
     print("[INFO] Loading configuration and model...")
     # Load default training config using absolute path
     config_path = "/Users/mderaznasr/Documents/GitHub/openVINO-project-21/openvino-vla/unifolm-vla/src/unifolm_vla/config/training/unifolm_vla_train.yaml"
@@ -44,8 +49,11 @@ def main():
         )
 
         print("[INFO] Saving IR...")
-        ov.save_model(ov_model, "export_tests/single_step_dit.xml")
-        print("[SUCCESS] Single-step DiT converted and saved to export_tests/single_step_dit.xml")
+    
+        output_dir = "/Users/mderaznasr/Documents/GitHub/openVINO-project-21/artifacts/openvino_ir"
+        os.makedirs(output_dir, exist_ok=True)
+        ov.save_model(ov_model, os.path.join(output_dir, "single_step_dit.xml"))
+        print(f"[SUCCESS] Single-step DiT converted and saved to {output_dir}/single_step_dit.xml")
         
     except Exception as e:
         print(f"[FAILURE] Conversion failed with error:\n{e}")

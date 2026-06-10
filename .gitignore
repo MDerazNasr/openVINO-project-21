@@ -155,3 +155,4 @@ cython_debug/
 
 # macOS
 .DS_Store
+artifacts/openvino_ir/*.bin
