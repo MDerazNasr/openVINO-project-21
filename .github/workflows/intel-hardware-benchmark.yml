@@ -1,5 +1,6 @@
 name: Intel Hardware Benchmark
 
+# Self-hosted Intel hardware benchmark for OpenVINO VLA IRs.
 on:
   workflow_dispatch:
     inputs:
