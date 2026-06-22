@@ -26,8 +26,44 @@ def require_ir_pair(xml_path: Path) -> None:
         raise RuntimeError(f"IR weights look too small: {bin_path} ({bin_path.stat().st_size} bytes)")
 
 
-def static_shape(port) -> tuple[int, ...]:
-    return tuple(int(dim) for dim in port.get_partial_shape().to_shape())
+DEFAULT_BATCH = 1
+DEFAULT_SEQ_LEN = 512
+DEFAULT_VL_DIM = 2048
+DEFAULT_ACTION_HORIZON = int(os.environ.get("VLA_ACTION_HORIZON", "25"))
+DEFAULT_ACTION_DIM = int(os.environ.get("VLA_ACTION_DIM", "23"))
+DEFAULT_STATE_DIM = int(os.environ.get("VLA_STATE_DIM", "23"))
+
+
+def dim_value(dim, fallback: int) -> int:
+    return int(dim.get_length()) if dim.is_static else fallback
+
+
+def partial_rank(port) -> int:
+    rank = port.get_partial_shape().rank
+    if rank.is_dynamic:
+        raise RuntimeError(f"Input {port.get_any_name()} has dynamic rank; cannot synthesize benchmark input")
+    return int(rank.get_length())
+
+
+def resolved_shape(port, role: str) -> tuple[int, ...]:
+    p_shape = port.get_partial_shape()
+    rank = partial_rank(port)
+
+    if role == "vl_embs":
+        defaults = (DEFAULT_BATCH, DEFAULT_SEQ_LEN, DEFAULT_VL_DIM)
+    elif role == "actions":
+        defaults = (DEFAULT_BATCH, DEFAULT_ACTION_HORIZON, DEFAULT_ACTION_DIM)
+    elif role == "state":
+        defaults = (DEFAULT_BATCH, 1, DEFAULT_STATE_DIM)
+    elif role == "timestep":
+        defaults = (DEFAULT_BATCH,)
+    else:
+        raise ValueError(f"Unknown input role: {role}")
+
+    if rank != len(defaults):
+        raise RuntimeError(f"Input {port.get_any_name()} rank {rank} does not match role {role}")
+
+    return tuple(dim_value(p_shape[i], defaults[i]) for i in range(rank))
 
 
 def infer_input_shapes(compiled: ov.CompiledModel) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
@@ -38,17 +74,19 @@ def infer_input_shapes(compiled: ov.CompiledModel) -> tuple[tuple[int, ...], tup
 
     for inp in compiled.inputs:
         name = inp.get_any_name().lower()
-        shape = static_shape(inp)
+        rank = partial_rank(inp)
+        p_shape = inp.get_partial_shape()
+        last_dim = p_shape[rank - 1].get_length() if rank > 0 and p_shape[rank - 1].is_static else None
+        second_dim = p_shape[1].get_length() if rank > 1 and p_shape[1].is_static else None
 
-        if "vl_embs" in name or (len(shape) == 3 and shape[-1] == 2048):
-            vl_shape = shape
-        elif "state" in name or (len(shape) == 3 and shape[1] == 1):
-            state_shape = shape
-        elif "action" in name or "initial_noise" in name or len(shape) == 3:
-            if shape != vl_shape and shape != state_shape:
-                action_shape = shape
-        elif "time" in name or len(shape) == 1:
-            timestep_shape = shape
+        if "vl_embs" in name or (rank == 3 and last_dim == DEFAULT_VL_DIM):
+            vl_shape = resolved_shape(inp, "vl_embs")
+        elif "state" in name or (rank == 3 and second_dim == 1):
+            state_shape = resolved_shape(inp, "state")
+        elif "action" in name or "initial_noise" in name or rank == 3:
+            action_shape = resolved_shape(inp, "actions")
+        elif "time" in name or rank == 1:
+            timestep_shape = resolved_shape(inp, "timestep")
 
     missing = {
         "vl_embs": vl_shape,
@@ -148,10 +186,10 @@ def benchmark_device(core: ov.Core, device: str) -> None:
             step_inputs = dict(single_inputs)
             for inp in single_compiled.inputs:
                 name = inp.get_any_name().lower()
-                shape = tuple(inp.get_partial_shape().to_shape())
-                if "action" in name or shape == current.shape:
+                rank = partial_rank(inp)
+                if "action" in name or (rank == current.ndim and tuple(current.shape) == resolved_shape(inp, "actions")):
                     step_inputs[inp] = current
-                elif "time" in name or shape == t.shape:
+                elif "time" in name or rank == t.ndim:
                     step_inputs[inp] = t
             output = next(iter(single_compiled(step_inputs).values()))
             current = current + dt * output
@@ -177,6 +215,7 @@ def main() -> None:
     core = ov.Core()
     print(f"[INFO] Available devices: {core.available_devices}")
 
+    successes = 0
     for device in core.available_devices:
         if device == "NPU" and os.environ.get("BENCHMARK_NPU", "0") != "1":
             print("\n=== Device: NPU ===")
@@ -185,8 +224,12 @@ def main() -> None:
             continue
         try:
             benchmark_device(core, device)
+            successes += 1
         except Exception as exc:
             print(f"[ERROR] Device {device} failed: {type(exc).__name__}: {exc}")
+
+    if successes == 0:
+        raise RuntimeError("No devices produced benchmark results")
 
 
 if __name__ == "__main__":
