@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import os
+import itertools
 from pathlib import Path
 
 import numpy as np
@@ -66,55 +67,12 @@ def resolved_shape(port, role: str) -> tuple[int, ...]:
     return tuple(dim_value(p_shape[i], defaults[i]) for i in range(rank))
 
 
-def infer_input_shapes(compiled: ov.CompiledModel) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
-    vl_shape = None
-    action_shape = None
-    state_shape = None
-    timestep_shape = None
-    rank3_fallbacks = []
-
-    for inp in compiled.inputs:
-        name = inp.get_any_name().lower()
-        rank = partial_rank(inp)
-        p_shape = inp.get_partial_shape()
-        last_dim = p_shape[rank - 1].get_length() if rank > 0 and p_shape[rank - 1].is_static else None
-        second_dim = p_shape[1].get_length() if rank > 1 and p_shape[1].is_static else None
-
-        if "vl_embs" in name or (rank == 3 and last_dim == DEFAULT_VL_DIM):
-            vl_shape = resolved_shape(inp, "vl_embs")
-        elif "state" in name or (rank == 3 and second_dim == 1):
-            state_shape = resolved_shape(inp, "state")
-        elif "action" in name or "initial_noise" in name or rank == 3:
-            if "action" in name or "initial_noise" in name:
-                action_shape = resolved_shape(inp, "actions")
-            else:
-                rank3_fallbacks.append(inp)
-        elif "time" in name or rank == 1:
-            timestep_shape = resolved_shape(inp, "timestep")
-
-    for inp in rank3_fallbacks:
-        if vl_shape is None:
-            vl_shape = resolved_shape(inp, "vl_embs")
-        elif action_shape is None:
-            action_shape = resolved_shape(inp, "actions")
-        elif state_shape is None:
-            state_shape = resolved_shape(inp, "state")
-
-    missing = {
-        "vl_embs": vl_shape,
-        "actions": action_shape,
-        "state": state_shape,
-        "timestep": timestep_shape,
-    }
-    if any(value is None for value in missing.values()):
-        raise RuntimeError(f"Could not infer all input shapes: {missing}")
-
-    return vl_shape, action_shape, state_shape, timestep_shape
-
-
-def make_inputs(compiled: ov.CompiledModel) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def make_inputs() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     rng = np.random.default_rng(42)
-    vl_shape, action_shape, state_shape, timestep_shape = infer_input_shapes(compiled)
+    vl_shape = (DEFAULT_BATCH, DEFAULT_SEQ_LEN, DEFAULT_VL_DIM)
+    action_shape = (DEFAULT_BATCH, DEFAULT_ACTION_HORIZON, DEFAULT_ACTION_DIM)
+    state_shape = (DEFAULT_BATCH, 1, DEFAULT_STATE_DIM)
+    timestep_shape = (DEFAULT_BATCH,)
     vl_embs = rng.standard_normal(vl_shape, dtype=np.float32)
     actions = rng.standard_normal(action_shape, dtype=np.float32)
     state = rng.standard_normal(state_shape, dtype=np.float32)
@@ -122,60 +80,46 @@ def make_inputs(compiled: ov.CompiledModel) -> tuple[np.ndarray, np.ndarray, np.
     return vl_embs, actions, state, timestep
 
 
-def map_inputs(compiled: ov.CompiledModel, vl_embs, actions, state, timestep) -> dict:
-    mapped = {}
-    pending_rank3 = []
-    candidates = [
+def print_inputs(compiled: ov.CompiledModel, label: str) -> None:
+    print(f"[INFO] {label} inputs:")
+    for index, inp in enumerate(compiled.inputs):
+        print(f"  [{index}] name={inp.get_any_name()} shape={inp.get_partial_shape()} type={inp.get_element_type()}")
+
+
+def find_working_inputs(compiled: ov.CompiledModel, vl_embs, actions, state, timestep, label: str) -> dict:
+    rank3_inputs = [inp for inp in compiled.inputs if partial_rank(inp) == 3]
+    rank1_inputs = [inp for inp in compiled.inputs if partial_rank(inp) == 1]
+
+    if len(rank3_inputs) != 3:
+        raise RuntimeError(f"{label}: expected 3 rank-3 inputs, got {len(rank3_inputs)}")
+    if len(rank1_inputs) > 1:
+        raise RuntimeError(f"{label}: expected at most 1 rank-1 input, got {len(rank1_inputs)}")
+
+    values = [
         ("vl_embs", vl_embs),
         ("actions", actions),
-        ("initial_noise", actions),
         ("state", state),
-        ("timestep", timestep),
     ]
 
-    for inp in compiled.inputs:
-        name = inp.get_any_name()
-        lower_name = name.lower()
-        value = None
+    last_error = None
+    for permutation in itertools.permutations(values):
+        mapped = {}
+        role_names = []
+        for inp, (role, value) in zip(rank3_inputs, permutation):
+            mapped[inp] = value
+            role_names.append(role)
+        if rank1_inputs:
+            mapped[rank1_inputs[0]] = timestep
+            role_names.append("timestep")
 
-        for key, candidate in candidates:
-            if key in lower_name:
-                value = candidate
-                break
+        try:
+            compiled(mapped)
+            print(f"[INFO] {label} input mapping works: {role_names}")
+            return mapped
+        except Exception as exc:
+            last_error = exc
 
-        if value is None:
-            rank = partial_rank(inp)
-            p_shape = inp.get_partial_shape()
-            last_dim = p_shape[rank - 1].get_length() if rank > 0 and p_shape[rank - 1].is_static else None
-            second_dim = p_shape[1].get_length() if rank > 1 and p_shape[1].is_static else None
-
-            if rank == vl_embs.ndim and last_dim == vl_embs.shape[-1]:
-                value = vl_embs
-            elif rank == state.ndim and second_dim == state.shape[1]:
-                value = state
-            elif rank == timestep.ndim:
-                value = timestep
-            elif rank == actions.ndim:
-                pending_rank3.append(inp)
-                continue
-
-        if value is None:
-            raise RuntimeError(f"Could not map input {name} with shape {inp.get_partial_shape()}")
-
-        mapped[inp] = value
-
-    mapped_value_ids = {id(value) for value in mapped.values()}
-    fallback_values = [
-        value for value in (vl_embs, actions, state) if id(value) not in mapped_value_ids
-    ]
-    for inp in pending_rank3:
-        if inp in mapped:
-            continue
-        if not fallback_values:
-            raise RuntimeError(f"Too many unmapped rank-3 inputs; could not map {inp.get_any_name()}")
-        mapped[inp] = fallback_values.pop(0)
-
-    return mapped
+    raise RuntimeError(f"{label}: no rank-3 input permutation executed successfully; last error: {last_error}")
 
 
 def time_call(fn, runs: int = 30, warmup: int = 5) -> float:
@@ -199,10 +143,13 @@ def benchmark_device(core: ov.Core, device: str) -> None:
     single_compiled = core.compile_model(single_model, device)
     fused_compiled = core.compile_model(fused_model, device)
 
-    vl_embs, actions, state, timestep = make_inputs(single_compiled)
+    print_inputs(single_compiled, "single-step")
+    print_inputs(fused_compiled, "fused-loop")
 
-    single_inputs = map_inputs(single_compiled, vl_embs, actions, state, timestep)
-    fused_inputs = map_inputs(fused_compiled, vl_embs, actions, state, timestep)
+    vl_embs, actions, state, timestep = make_inputs()
+
+    single_inputs = find_working_inputs(single_compiled, vl_embs, actions, state, timestep, "single-step")
+    fused_inputs = find_working_inputs(fused_compiled, vl_embs, actions, state, timestep, "fused-loop")
 
     def run_single_loop():
         current = actions.copy()
@@ -210,12 +157,10 @@ def benchmark_device(core: ov.Core, device: str) -> None:
         for step in range(4):
             t = np.array([step], dtype=np.int64)
             step_inputs = dict(single_inputs)
-            for inp in single_compiled.inputs:
-                name = inp.get_any_name().lower()
-                rank = partial_rank(inp)
-                if "action" in name or (rank == current.ndim and tuple(current.shape) == resolved_shape(inp, "actions")):
+            for inp, value in single_inputs.items():
+                if value is actions:
                     step_inputs[inp] = current
-                elif "time" in name or rank == t.ndim:
+                elif value is timestep:
                     step_inputs[inp] = t
             output = next(iter(single_compiled(step_inputs).values()))
             current = current + dt * output
