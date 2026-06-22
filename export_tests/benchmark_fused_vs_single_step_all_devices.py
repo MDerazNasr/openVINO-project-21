@@ -71,6 +71,7 @@ def infer_input_shapes(compiled: ov.CompiledModel) -> tuple[tuple[int, ...], tup
     action_shape = None
     state_shape = None
     timestep_shape = None
+    rank3_fallbacks = []
 
     for inp in compiled.inputs:
         name = inp.get_any_name().lower()
@@ -84,9 +85,20 @@ def infer_input_shapes(compiled: ov.CompiledModel) -> tuple[tuple[int, ...], tup
         elif "state" in name or (rank == 3 and second_dim == 1):
             state_shape = resolved_shape(inp, "state")
         elif "action" in name or "initial_noise" in name or rank == 3:
-            action_shape = resolved_shape(inp, "actions")
+            if "action" in name or "initial_noise" in name:
+                action_shape = resolved_shape(inp, "actions")
+            else:
+                rank3_fallbacks.append(inp)
         elif "time" in name or rank == 1:
             timestep_shape = resolved_shape(inp, "timestep")
+
+    for inp in rank3_fallbacks:
+        if vl_shape is None:
+            vl_shape = resolved_shape(inp, "vl_embs")
+        elif action_shape is None:
+            action_shape = resolved_shape(inp, "actions")
+        elif state_shape is None:
+            state_shape = resolved_shape(inp, "state")
 
     missing = {
         "vl_embs": vl_shape,
@@ -112,6 +124,7 @@ def make_inputs(compiled: ov.CompiledModel) -> tuple[np.ndarray, np.ndarray, np.
 
 def map_inputs(compiled: ov.CompiledModel, vl_embs, actions, state, timestep) -> dict:
     mapped = {}
+    pending_rank3 = []
     candidates = [
         ("vl_embs", vl_embs),
         ("actions", actions),
@@ -140,15 +153,27 @@ def map_inputs(compiled: ov.CompiledModel, vl_embs, actions, state, timestep) ->
                 value = vl_embs
             elif rank == state.ndim and second_dim == state.shape[1]:
                 value = state
-            elif rank == actions.ndim:
-                value = actions
             elif rank == timestep.ndim:
                 value = timestep
+            elif rank == actions.ndim:
+                pending_rank3.append(inp)
+                continue
 
         if value is None:
             raise RuntimeError(f"Could not map input {name} with shape {inp.get_partial_shape()}")
 
         mapped[inp] = value
+
+    mapped_value_ids = {id(value) for value in mapped.values()}
+    fallback_values = [
+        value for value in (vl_embs, actions, state) if id(value) not in mapped_value_ids
+    ]
+    for inp in pending_rank3:
+        if inp in mapped:
+            continue
+        if not fallback_values:
+            raise RuntimeError(f"Too many unmapped rank-3 inputs; could not map {inp.get_any_name()}")
+        mapped[inp] = fallback_values.pop(0)
 
     return mapped
 
