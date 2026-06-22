@@ -14,6 +14,7 @@ on:
     paths:
       - ".github/workflows/intel-hardware-benchmark.yml"
       - "export_tests/benchmark_fused_vs_single_step_all_devices.py"
+      - "export_tests/deep_hardware_benchmark.py"
       - "export_tests/convert_single_step_dit.py"
       - "export_tests/convert_fused_loop_dit.py"
 
@@ -91,3 +92,15 @@ jobs:
         shell: powershell
         run: |
           python export_tests\benchmark_fused_vs_single_step_all_devices.py
+
+      - name: Run deep hardware benchmark
+        shell: powershell
+        run: |
+          python export_tests\deep_hardware_benchmark.py
+
+      - name: Upload benchmark outputs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: intel-hardware-benchmark
+          path: benchmark_outputs/

@@ -1,5 +1,17 @@
 # Benchmark Results
 
+## Intel Hardware Baseline (June 22, 2026)
+
+The first successful target-hardware run was completed on an Intel Core Ultra 7 258V system with Intel Arc 140V iGPU and Intel AI Boost NPU using OpenVINO `2026.2.1`.
+
+| Device | Python-Orchestrated Single-Step Loop | Fused 4-Step IR | Fused Speedup |
+|---|---:|---:|---:|
+| Intel CPU | 1215.52 ms | 874.07 ms | 1.39x |
+| Intel Arc 140V iGPU | 69.02 ms | 57.87 ms | 1.19x |
+| Intel AI Boost NPU | skipped | skipped | n/a |
+
+The Intel run used G1 dimensions (`NUM_ACTIONS_CHUNK=25`, `ACTION_DIM=23`, `PROPRIO_DIM=23`), so it is not directly comparable to earlier LIBERO-shaped local CPU numbers. See [Intel Hardware Baseline - June 22, 2026](intel_hardware_baseline_2026_06_22.md) for full details.
+
 ## Single-Step DiT
 
 | Runtime | Mean ms | Median ms | Min ms | Max ms | Notes |
