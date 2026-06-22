@@ -66,7 +66,7 @@ Fused-loop DiT:
 | 1 | `initial_noise` | `[?,?,?]` | `float32` |
 | 2 | `state` | `[?,?,?]` | `float32` |
 
-## Latency Results
+## Quick Latency Results
 
 | Device | Python-Orchestrated Single-Step Loop | Fused 4-Step IR | Fused Speedup |
 |---|---:|---:|---:|
@@ -74,11 +74,52 @@ Fused-loop DiT:
 | GPU | 69.02 ms | 57.87 ms | 1.19x |
 | NPU | skipped | skipped | n/a |
 
+## Deep Benchmark Results
+
+The follow-up deep benchmark collected compile latency, first-call/warmup behavior, steady-state distributions, and throughput. It used 12 measured runs for CPU and 100 measured runs for GPU.
+
+### Compile Time
+
+| Device | Single-Step Compile | Fused-Loop Compile |
+|---|---:|---:|
+| CPU | 309.13 ms | 1083.28 ms |
+| GPU | 934.65 ms | 2268.10 ms |
+
+### Steady-State Latency Distribution
+
+| Device | Strategy | Mean | Median | Min | Max | Std | P90 | P95 | P99 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| CPU | Single DiT step | 307.54 ms | 306.77 ms | 302.44 ms | 315.17 ms | 3.66 ms | 310.99 ms | 312.91 ms | 314.72 ms |
+| CPU | Python 4-step loop | 1223.56 ms | 1223.50 ms | 1214.46 ms | 1230.23 ms | 4.28 ms | 1228.76 ms | 1229.49 ms | 1230.08 ms |
+| CPU | Fused 4-step IR | 873.17 ms | 872.13 ms | 868.02 ms | 882.66 ms | 3.59 ms | 877.41 ms | 879.94 ms | 882.11 ms |
+| GPU | Single DiT step | 16.20 ms | 16.12 ms | 15.83 ms | 17.34 ms | 0.31 ms | 16.66 ms | 16.85 ms | 17.16 ms |
+| GPU | Python 4-step loop | 65.31 ms | 65.03 ms | 63.66 ms | 68.60 ms | 1.20 ms | 67.01 ms | 67.65 ms | 68.27 ms |
+| GPU | Fused 4-step IR | 54.39 ms | 54.22 ms | 53.75 ms | 56.10 ms | 0.51 ms | 55.35 ms | 55.58 ms | 55.93 ms |
+
+### Throughput
+
+| Device | Python-Loop Chunks/s | Fused-Loop Chunks/s | Fused Speedup |
+|---|---:|---:|---:|
+| CPU | 0.82 | 1.15 | 1.40x |
+| GPU | 15.31 | 18.39 | 1.20x |
+| NPU | n/a | n/a | skipped |
+
+### Warmup / First-Call Behavior
+
+| Device | Strategy | First Warmup | Warmup Mean |
+|---|---|---:|---:|
+| CPU | Single DiT step | 593.83 ms | 401.22 ms |
+| CPU | Python 4-step loop | 1215.16 ms | 1224.23 ms |
+| CPU | Fused 4-step IR | 1167.59 ms | 971.47 ms |
+| GPU | Single DiT step | 296.88 ms | 44.18 ms |
+| GPU | Python 4-step loop | 64.20 ms | 64.56 ms |
+| GPU | Fused 4-step IR | 85.46 ms | 57.40 ms |
+
 ## Interpretation
 
 - The Intel Arc 140V iGPU is currently the viable deployment target for the DiT action head.
 - The fused-loop graph is still faster than Python orchestration on both CPU and GPU, but the relative gain is smaller on the Intel GPU than on the earlier Apple CPU baseline.
-- GPU fused-loop latency is approximately 57.87 ms per 4-step action chunk, or about 17.3 action chunks/sec under this synthetic benchmark.
+- GPU fused-loop latency is approximately 54.39 ms per 4-step action chunk, or about 18.39 action chunks/sec under the deep synthetic benchmark.
 - CPU latency is much higher on this target for the DiT action path: 874.07 ms for the fused graph.
 - NPU was not benchmarked in this run because the NPU compiler previously aborted on the dynamic DiT graph during shape/type inference. It should be treated as a separate static-shape enablement task.
 
@@ -88,10 +129,10 @@ Fused-loop DiT:
 |---|---|---:|
 | Apple M4 CPU | Python-orchestrated loop | 495.65 ms |
 | Apple M4 CPU | Fused 4-step IR | 259.50 ms |
-| Intel Core Ultra 7 258V CPU | Python-orchestrated loop | 1215.52 ms |
-| Intel Core Ultra 7 258V CPU | Fused 4-step IR | 874.07 ms |
-| Intel Arc 140V iGPU | Python-orchestrated loop | 69.02 ms |
-| Intel Arc 140V iGPU | Fused 4-step IR | 57.87 ms |
+| Intel Core Ultra 7 258V CPU | Python-orchestrated loop | 1223.56 ms |
+| Intel Core Ultra 7 258V CPU | Fused 4-step IR | 873.17 ms |
+| Intel Arc 140V iGPU | Python-orchestrated loop | 65.31 ms |
+| Intel Arc 140V iGPU | Fused 4-step IR | 54.39 ms |
 
 The cross-platform CPU numbers are not directly comparable because the latest Intel run used G1 dimensions (`25 x 23` action chunks), while earlier local notes used LIBERO dimensions (`8 x 7`). The Intel GPU result should be treated as the first meaningful target-hardware baseline.
 
@@ -110,9 +151,11 @@ Next work for full VLA benchmarking:
 
 ## Immediate Next Step
 
-Run the in-depth benchmark workflow to collect compile time, first-call latency, steady-state latency distribution, IR op counts, file sizes, and CPU/GPU stability metrics. After that, start GPU profiling with VTune/OpenVINO profiling focused on:
+Start GPU profiling with VTune/OpenVINO profiling focused on:
 
 - attention blocks,
 - decomposed AdaLayerNorm/MVN patterns,
 - matmul utilization on Arc 140V,
 - fused-loop graph scheduling.
+
+In parallel, unblock full VLA benchmarking by replacing the current mock/template `qwen_vlm_backbone` artifact with a real Qwen2.5-VL OpenVINO export.
