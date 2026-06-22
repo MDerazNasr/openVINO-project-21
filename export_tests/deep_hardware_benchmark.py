@@ -87,6 +87,10 @@ def model_info(core: ov.Core, xml_path: Path) -> dict:
     }
     if not xml_path.exists():
         return info
+    if not info["is_real_weight_artifact"]:
+        info["status"] = "metadata_only"
+        info["reason"] = "Missing or tiny .bin file; skipping OpenVINO model load."
+        return info
 
     model = core.read_model(xml_path)
     ops = Counter(op.get_type_name() for op in model.get_ops())
