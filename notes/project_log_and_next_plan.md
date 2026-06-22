@@ -389,47 +389,53 @@ These should be clarified later:
 
 - [x] Document Intel hardware baseline.
 - [x] Document deep benchmark results.
+- [x] Document VTune availability blocker and OpenVINO profiling fallback.
+- [x] Document presentation-safe claims and current limitations.
 - [ ] Keep this project log updated after every experiment.
 - [ ] Add a decision log for major architecture choices.
-- [ ] Convert notes into mentor presentation material.
+- [x] Convert notes into mentor presentation material.
 
 ### B. Mentor Reporting
 
-- [ ] Prepare benchmark summary for mentors.
-- [ ] Prepare update presentation.
+- [x] Prepare benchmark summary for mentors.
+- [x] Prepare update presentation draft.
 - [ ] Send mentors both benchmark results and presentation.
 - [ ] Include DiT benchmark numbers, VLM blocker, NPU status, and next profiling plan.
 
 ### C. Presentation
 
-- [ ] Build a full progress presentation.
-- [ ] Include proposal goals, blockers, native patching, parity, fused-loop, weight sharing, Intel benchmark, VLM blocker, and VTune plan.
+- [x] Draft full progress presentation narrative.
+- [x] Include proposal goals, blockers, native patching, parity, fused-loop, weight sharing, Intel benchmark, VLM blocker, and VTune plan.
 - [ ] Prepare a shorter version for broader team presentation.
 - [ ] Ask mentors/admin when the team-wide presentation is happening and what format is expected.
 
 ### D. VTune Learning and Setup
 
-- [ ] Learn VTune basics.
-- [ ] Write a short note explaining VTune profiling.
-- [ ] Verify VTune availability on the Intel machine.
+- [x] Learn VTune basics.
+- [x] Write a short note explaining VTune profiling.
+- [x] Verify VTune availability on the Intel machine.
 - [ ] Run VTune smoke test.
 - [ ] Profile fused-loop DiT GPU path.
 - [ ] Profile Python-loop DiT GPU path.
 - [ ] Compare traces.
+- [x] Document that VTune CLI is missing on the runner `PATH`.
+- [x] Add OpenVINO node profiling fallback.
+- [x] Document OpenVINO node profiling results.
 
 ### E. IR Graph Analysis
 
-- [ ] Write script to compare single-step IR vs fused-loop IR.
-- [ ] Count total nodes and op types.
-- [ ] Identify attention representation.
-- [ ] Identify AdaLayerNorm/MVN pattern.
-- [ ] Compare graph differences and possible fusion changes.
-- [ ] Document what OpenVINO optimization strategy appears to do.
+- [x] Write script to compare single-step IR vs fused-loop IR.
+- [x] Count total nodes and op types.
+- [x] Identify attention representation.
+- [x] Identify AdaLayerNorm/MVN pattern.
+- [x] Compare graph differences and possible fusion changes.
+- [x] Document what OpenVINO optimization strategy appears to do.
 
 ### F. FLOPs and Roofline
 
-- [ ] Ask user to re-explain the mentor FLOPs discussion before starting detailed work.
-- [ ] Learn formulas for Linear/MatMul, attention, MLP, LayerNorm/MVN, and elementwise ops.
+- [x] Ask user to re-explain the mentor FLOPs discussion before starting detailed work.
+- [x] Document the learning targets for FLOPs, `T_math`, `T_mem`, compute-bound, and communication-bound analysis.
+- [ ] Learn formulas for Linear/MatMul, attention, MLP, LayerNorm/MVN, and elementwise ops in enough detail to explain them live.
 - [ ] Validate DiT FLOPs manually or with a trusted profiler.
 - [ ] Repeat roofline for Intel Arc 140V.
 - [ ] Analyze VLM FLOPs/roofline separately.
@@ -461,7 +467,7 @@ These should be clarified later:
 
 ### J. NPU
 
-- [ ] Document current NPU dynamic-shape compiler failure.
+- [x] Document current NPU dynamic-shape compiler failure.
 - [ ] Defer NPU until CPU/GPU path is stable.
 - [ ] Later test static-shape export for NPU.
 

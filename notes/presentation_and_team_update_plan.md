@@ -52,6 +52,14 @@ The story should be:
 8. The next phase is VTune profiling to choose the first real optimization target.
 9. Full VLA latency is still blocked until the real Qwen2.5-VL backbone is exported with weights.
 
+Update from June 23, 2026:
+
+- A deck-ready mentor presentation package has been drafted in `notes/mentor_presentation_package_2026_06_23.md`.
+- A mentor email/update draft has been drafted in `notes/mentor_update_email_2026_06_23.md`.
+- The presentation should use the latest Intel benchmark and OpenVINO profiling results, not the older local-only deck numbers.
+- The presentation should explicitly say that the current validated benchmark is DiT action-head latency, while full VLA latency remains blocked on a real Qwen2.5-VL export with weights.
+- The presentation should also explicitly say that VTune was not available on the runner and that OpenVINO node profiling was used as an interim fallback.
+
 ## Slide Outline
 
 ### Slide 1: Project Goal
