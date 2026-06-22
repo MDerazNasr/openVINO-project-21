@@ -112,7 +112,6 @@ def make_inputs(compiled: ov.CompiledModel) -> tuple[np.ndarray, np.ndarray, np.
 
 def map_inputs(compiled: ov.CompiledModel, vl_embs, actions, state, timestep) -> dict:
     mapped = {}
-    used_shapes = set()
     candidates = [
         ("vl_embs", vl_embs),
         ("actions", actions),
@@ -132,17 +131,19 @@ def map_inputs(compiled: ov.CompiledModel, vl_embs, actions, state, timestep) ->
                 break
 
         if value is None:
-            shape = tuple(inp.get_partial_shape().to_shape())
-            for key, candidate in (
-                ("vl_embs", vl_embs),
-                ("actions", actions),
-                ("state", state),
-                ("timestep", timestep),
-            ):
-                if key not in used_shapes and shape == candidate.shape:
-                    value = candidate
-                    used_shapes.add(key)
-                    break
+            rank = partial_rank(inp)
+            p_shape = inp.get_partial_shape()
+            last_dim = p_shape[rank - 1].get_length() if rank > 0 and p_shape[rank - 1].is_static else None
+            second_dim = p_shape[1].get_length() if rank > 1 and p_shape[1].is_static else None
+
+            if rank == vl_embs.ndim and last_dim == vl_embs.shape[-1]:
+                value = vl_embs
+            elif rank == state.ndim and second_dim == state.shape[1]:
+                value = state
+            elif rank == actions.ndim:
+                value = actions
+            elif rank == timestep.ndim:
+                value = timestep
 
         if value is None:
             raise RuntimeError(f"Could not map input {name} with shape {inp.get_partial_shape()}")
