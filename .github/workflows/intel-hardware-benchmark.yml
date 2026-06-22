@@ -1,0 +1,48 @@
+name: Intel Hardware Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_dir:
+        description: Directory containing OpenVINO XML/BIN artifacts on the runner
+        required: false
+        default: C:\Users\devcloud\openVINO-project-21-main\artifacts\openvino_ir
+
+jobs:
+  benchmark:
+    runs-on: self-hosted
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Python and device inventory
+        shell: powershell
+        run: |
+          python --version
+          python -m pip install --upgrade pip
+          python -m pip install openvino numpy torch omegaconf
+          python -c "import openvino as ov; print('OpenVINO', ov.__version__); print('devices', ov.Core().available_devices)"
+          python scripts/check_openvino_devices.py
+
+      - name: Copy local IR weights into checkout
+        shell: powershell
+        run: |
+          $src = "${{ github.event.inputs.artifact_dir }}"
+          $dst = Join-Path $env:GITHUB_WORKSPACE "artifacts\openvino_ir"
+          New-Item -ItemType Directory -Force -Path $dst | Out-Null
+          Write-Host "Artifact source: $src"
+          Write-Host "Artifact destination: $dst"
+          if (Test-Path $src) {
+            Copy-Item (Join-Path $src "*.bin") $dst -Force -ErrorAction SilentlyContinue
+            Copy-Item (Join-Path $src "*.xml") $dst -Force -ErrorAction SilentlyContinue
+          }
+          Get-ChildItem $dst | Select-Object Name, Length
+          if (!(Test-Path (Join-Path $dst "single_step_dit.bin"))) { throw "Missing single_step_dit.bin" }
+          if (!(Test-Path (Join-Path $dst "fused_loop_dit.bin"))) { throw "Missing fused_loop_dit.bin" }
+
+      - name: Run multi-device benchmark
+        shell: powershell
+        run: |
+          python export_tests\benchmark_fused_vs_single_step_all_devices.py
