@@ -93,7 +93,7 @@ def model_info(core: ov.Core, xml_path: Path) -> dict:
     info["inputs"] = [
         {
             "index": i,
-            "name": port.get_any_name(),
+            "name": safe_any_name(port, f"input_{i}"),
             "shape": str(port.get_partial_shape()),
             "type": str(port.get_element_type()),
         }
@@ -102,7 +102,7 @@ def model_info(core: ov.Core, xml_path: Path) -> dict:
     info["outputs"] = [
         {
             "index": i,
-            "name": port.get_any_name(),
+            "name": safe_any_name(port, f"output_{i}"),
             "shape": str(port.get_partial_shape()),
             "type": str(port.get_element_type()),
         }
@@ -111,6 +111,13 @@ def model_info(core: ov.Core, xml_path: Path) -> dict:
     info["op_count"] = int(sum(ops.values()))
     info["op_types"] = dict(sorted(ops.items(), key=lambda item: (-item[1], item[0])))
     return info
+
+
+def safe_any_name(port, fallback: str) -> str:
+    try:
+        return port.get_any_name()
+    except RuntimeError:
+        return fallback
 
 
 def make_inputs() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
