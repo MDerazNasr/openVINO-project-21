@@ -217,11 +217,25 @@ This validates the planned fusion target.
 - [x] Add a stable profiling workload script: `export_tests/profile_dit_workload.py`.
 - [x] Add a GitHub Actions VTune availability check.
 - [x] Add an opt-in `run_vtune` workflow input for GPU Hotspots.
+- [x] Check whether VTune is available on the Intel runner `PATH`.
+- [ ] Locate or install VTune on the Intel runner.
 - [ ] Run the workflow manually with `run_vtune=true`.
-- [ ] Check whether VTune is installed on the Intel instance.
-- [ ] If not installed, determine whether it can be installed during the reservation.
-- [ ] Confirm command-line VTune works.
+- [ ] If VTune is not installed, determine whether it can be installed during the reservation.
+- [ ] Confirm command-line VTune works after install/path setup.
 - [ ] Confirm GPU profiling is supported on this machine.
+
+Current runner result:
+
+```text
+Workflow run: 27985830438
+VTune CLI was not found on PATH.
+```
+
+Detailed note:
+
+```text
+notes/intel_runner_vtune_check_2026_06_23.md
+```
 
 ## Implemented Profiling Harness
 

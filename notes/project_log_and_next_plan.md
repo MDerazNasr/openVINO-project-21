@@ -45,6 +45,13 @@ Weeks 5-6: VTune profiling and bottleneck analysis
 
 The DiT action-head iGPU baseline is now complete. Full VLA benchmarking is not complete yet because the real Qwen2.5-VL backbone has not been exported with actual weights.
 
+Update from June 23, 2026:
+
+- The VTune profiling harness and opt-in GitHub Actions workflow path are implemented.
+- The normal Intel benchmark still passes after adding the profiling harness.
+- VTune is not currently available on the Intel runner `PATH`; see `notes/intel_runner_vtune_check_2026_06_23.md`.
+- Next profiling choice: locate/install VTune, or use OpenVINO runtime profiling as an interim hotspot map.
+
 ## What We Have Done
 
 ### 1. Runtime and Architecture Study
