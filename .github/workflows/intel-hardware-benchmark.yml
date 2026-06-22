@@ -22,11 +22,30 @@ jobs:
         run: |
           python --version
           python -m pip install --upgrade pip
-          python -m pip install openvino numpy torch omegaconf
+          python -m pip install openvino numpy torch omegaconf diffusers transformers
           python -c "import openvino as ov; print('OpenVINO', ov.__version__); print('devices', ov.Core().available_devices)"
           python scripts/check_openvino_devices.py
 
-      - name: Copy local IR weights into checkout
+      - name: Prepare UnifoLM source
+        shell: powershell
+        run: |
+          $src = Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla\src\unifolm_vla"
+          if (!(Test-Path $src)) {
+            Write-Host "UnifoLM source missing from checkout; downloading source archive."
+            $target = Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla"
+            $zip = Join-Path $env:RUNNER_TEMP "unifolm-vla.zip"
+            $extract = Join-Path $env:RUNNER_TEMP "unifolm-vla-src"
+            New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
+            Invoke-WebRequest -Uri "https://github.com/unitreerobotics/unifolm-vla/archive/02d7bbc4b4742ca5d210031a416f06d333ca0261.zip" -OutFile $zip
+            if (Test-Path $extract) { Remove-Item $extract -Recurse -Force }
+            Expand-Archive -Path $zip -DestinationPath $extract -Force
+            $expanded = Get-ChildItem $extract -Directory | Select-Object -First 1
+            if (Test-Path $target) { Remove-Item $target -Recurse -Force }
+            Move-Item $expanded.FullName $target
+          }
+          Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla\src\unifolm_vla") | Select-Object Name
+
+      - name: Copy or generate IR weights
         shell: powershell
         run: |
           $src = "${{ github.event.inputs.artifact_dir }}"
@@ -39,8 +58,17 @@ jobs:
             Copy-Item (Join-Path $src "*.xml") $dst -Force -ErrorAction SilentlyContinue
           }
           Get-ChildItem $dst | Select-Object Name, Length
-          if (!(Test-Path (Join-Path $dst "single_step_dit.bin"))) { throw "Missing single_step_dit.bin" }
-          if (!(Test-Path (Join-Path $dst "fused_loop_dit.bin"))) { throw "Missing fused_loop_dit.bin" }
+          if (!(Test-Path (Join-Path $dst "single_step_dit.bin"))) {
+            Write-Host "single_step_dit.bin missing; regenerating single-step IR."
+            python export_tests\convert_single_step_dit.py
+          }
+          if (!(Test-Path (Join-Path $dst "fused_loop_dit.bin"))) {
+            Write-Host "fused_loop_dit.bin missing; regenerating fused-loop IR."
+            python export_tests\convert_fused_loop_dit.py
+          }
+          Get-ChildItem $dst | Select-Object Name, Length
+          if (!(Test-Path (Join-Path $dst "single_step_dit.bin"))) { throw "Missing single_step_dit.bin after conversion" }
+          if (!(Test-Path (Join-Path $dst "fused_loop_dit.bin"))) { throw "Missing fused_loop_dit.bin after conversion" }
 
       - name: Run multi-device benchmark
         shell: powershell

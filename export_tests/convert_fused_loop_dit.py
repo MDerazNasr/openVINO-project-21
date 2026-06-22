@@ -3,10 +3,15 @@ import numpy as np
 import openvino as ov
 import sys
 import os
+from pathlib import Path
 from omegaconf import OmegaConf
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+UNIFOLM_SRC = REPO_ROOT / "openvino-vla" / "unifolm-vla" / "src"
+IR_DIR = REPO_ROOT / "artifacts" / "openvino_ir"
+
 # Add project src to path
-sys.path.append(os.path.abspath("openvino-vla/unifolm-vla/src"))
+sys.path.append(str(UNIFOLM_SRC))
 from unifolm_vla.model.modules.action_model.DiT_ActionHeader_v2 import FlowmatchingActionHead_v2
 from FullLoopDiTWrapper import FullLoopDiTWrapper
 
@@ -15,7 +20,7 @@ def main():
     # Seed for deterministic export
     torch.manual_seed(42)
     
-    config_path = "/Users/mderaznasr/Documents/GitHub/openVINO-project-21/openvino-vla/unifolm-vla/src/unifolm_vla/config/training/unifolm_vla_train.yaml"
+    config_path = UNIFOLM_SRC / "unifolm_vla" / "config" / "training" / "unifolm_vla_train.yaml"
     config = OmegaConf.load(config_path)
     
     # Use v2 natively patched model
@@ -44,10 +49,9 @@ def main():
             example_input=(vl_embs, noise, state),
         )
 
-        output_dir = "/Users/mderaznasr/Documents/GitHub/openVINO-project-21/artifacts/openvino_ir"
-        os.makedirs(output_dir, exist_ok=True)
-        ov.save_model(ov_model, os.path.join(output_dir, "fused_loop_dit.xml"))
-        print(f"[SUCCESS] Fused Loop DiT converted and saved to {output_dir}/fused_loop_dit.xml")
+        os.makedirs(IR_DIR, exist_ok=True)
+        ov.save_model(ov_model, IR_DIR / "fused_loop_dit.xml")
+        print(f"[SUCCESS] Fused Loop DiT converted and saved to {IR_DIR / 'fused_loop_dit.xml'}")
         
     except Exception as e:
         print(f"[FAILURE] Conversion failed with error:\n{e}")
