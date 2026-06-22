@@ -214,18 +214,106 @@ This validates the planned fusion target.
 
 ### Setup
 
+- [x] Add a stable profiling workload script: `export_tests/profile_dit_workload.py`.
+- [x] Add a GitHub Actions VTune availability check.
+- [x] Add an opt-in `run_vtune` workflow input for GPU Hotspots.
+- [ ] Run the workflow manually with `run_vtune=true`.
 - [ ] Check whether VTune is installed on the Intel instance.
 - [ ] If not installed, determine whether it can be installed during the reservation.
 - [ ] Confirm command-line VTune works.
 - [ ] Confirm GPU profiling is supported on this machine.
-- [ ] Save output directories as GitHub Actions artifacts or local zip files.
+
+## Implemented Profiling Harness
+
+The profiling harness is:
+
+```text
+export_tests/profile_dit_workload.py
+```
+
+It creates the same synthetic DiT inputs used by the hardware benchmark:
+
+```text
+vl_embs:  [1, 512, 2048]
+actions:  [1, 25, 23]
+state:    [1, 1, 23]
+timestep: [1]
+```
+
+It supports three modes:
+
+```text
+--mode fused
+--mode python_loop
+--mode both
+```
+
+This gives VTune a stable workload to profile without mixing profiling logic into the benchmark script.
+
+Manual local/runner command:
+
+```powershell
+python export_tests\profile_dit_workload.py --device GPU --mode both --iterations 50 --warmup 5
+```
+
+Workflow usage:
+
+1. Open the `Intel Hardware Benchmark` workflow.
+2. Click `Run workflow`.
+3. Set:
+
+```text
+run_vtune = true
+vtune_iterations = 50
+```
+
+The workflow now checks for:
+
+```text
+vtune
+amplxe-cl
+```
+
+If `run_vtune=true` and `vtune` is not on `PATH`, the VTune step fails clearly. Normal benchmark runs do not require VTune.
+
+Expected VTune outputs:
+
+```text
+benchmark_outputs/vtune_gpu_fused/
+benchmark_outputs/vtune_gpu_fused_summary.txt
+benchmark_outputs/vtune_gpu_python_loop/
+benchmark_outputs/vtune_gpu_python_loop_summary.txt
+benchmark_outputs/dit_profile_fused.json
+benchmark_outputs/dit_profile_python_loop.json
+```
+
+## Why This Design
+
+The previous benchmark already answers:
+
+```text
+How fast is the DiT action head?
+```
+
+The profiling harness answers:
+
+```text
+Where does the time go during that workload?
+```
+
+Keeping the workload script separate from VTune has two benefits:
+
+1. The same script can be run without VTune to confirm it works.
+2. VTune can wrap exactly one stable Python process, which makes the trace easier to interpret.
 
 ### Workloads
 
-- [ ] Create a benchmark mode that runs only fused-loop GPU repeatedly.
-- [ ] Create a benchmark mode that runs only Python-loop GPU repeatedly.
-- [ ] Increase run duration enough for VTune to collect stable data.
+- [x] Create a benchmark mode that runs only fused-loop GPU repeatedly.
+- [x] Create a benchmark mode that runs only Python-loop GPU repeatedly.
+- [x] Add configurable iteration count for VTune collection.
+- [ ] Tune run duration enough for VTune to collect stable data.
 - [ ] Avoid mixing conversion/compile time into runtime profiling unless intentionally measuring compile.
+- [x] Save output directories as GitHub Actions artifacts or local zip files.
 
 ### Metrics To Capture
 
@@ -270,7 +358,7 @@ amplxe-cl
 The general pattern is:
 
 ```powershell
-vtune -collect gpu-hotspots -result-dir vtune_results\fused_gpu -- python export_tests\run_profile_target.py --mode fused --device GPU --runs 200
+vtune -collect gpu-hotspots -result-dir benchmark_outputs\vtune_gpu_fused -- python export_tests\profile_dit_workload.py --mode fused --device GPU --iterations 50
 ```
 
 and:

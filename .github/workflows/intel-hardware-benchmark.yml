@@ -8,6 +8,14 @@ on:
         description: Directory containing OpenVINO XML/BIN artifacts on the runner
         required: false
         default: "C:\\Users\\devcloud\\openVINO-project-21-main\\artifacts\\openvino_ir"
+      run_vtune:
+        description: Run VTune GPU Hotspots after the benchmark
+        required: false
+        default: "false"
+      vtune_iterations:
+        description: Number of profiled workload iterations per VTune run
+        required: false
+        default: "50"
   push:
     branches:
       - main
@@ -15,6 +23,7 @@ on:
       - ".github/workflows/intel-hardware-benchmark.yml"
       - "export_tests/benchmark_fused_vs_single_step_all_devices.py"
       - "export_tests/deep_hardware_benchmark.py"
+      - "export_tests/profile_dit_workload.py"
       - "export_tests/convert_single_step_dit.py"
       - "export_tests/convert_fused_loop_dit.py"
 
@@ -98,6 +107,51 @@ jobs:
         run: |
           python export_tests\deep_hardware_benchmark.py
           Get-Content benchmark_outputs\deep_hardware_benchmark.md
+
+      - name: Check VTune availability
+        shell: powershell
+        run: |
+          Write-Host "run_vtune input: ${{ github.event.inputs.run_vtune }}"
+          $vtune = Get-Command vtune -ErrorAction SilentlyContinue
+          $amplxe = Get-Command amplxe-cl -ErrorAction SilentlyContinue
+          if ($vtune) {
+            Write-Host "vtune found at $($vtune.Source)"
+            vtune -version
+          } elseif ($amplxe) {
+            Write-Host "amplxe-cl found at $($amplxe.Source)"
+            amplxe-cl -version
+          } else {
+            Write-Host "VTune CLI was not found on PATH."
+            Write-Host "Set run_vtune=false for benchmark-only runs, or install Intel VTune Profiler on the runner."
+          }
+
+      - name: Run VTune GPU Hotspots
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_vtune == 'true' }}
+        shell: powershell
+        run: |
+          $vtune = Get-Command vtune -ErrorAction SilentlyContinue
+          if (!$vtune) { throw "VTune CLI is not available on PATH; cannot run GPU Hotspots." }
+
+          $iters = "${{ github.event.inputs.vtune_iterations }}"
+          if ([string]::IsNullOrWhiteSpace($iters)) { $iters = "50" }
+
+          New-Item -ItemType Directory -Force -Path benchmark_outputs | Out-Null
+
+          vtune -collect gpu-hotspots `
+            -result-dir benchmark_outputs\vtune_gpu_fused `
+            -- python export_tests\profile_dit_workload.py --device GPU --mode fused --iterations $iters --warmup 5 --output-json benchmark_outputs\dit_profile_fused.json
+          vtune -report summary `
+            -r benchmark_outputs\vtune_gpu_fused `
+            -format text `
+            -report-output benchmark_outputs\vtune_gpu_fused_summary.txt
+
+          vtune -collect gpu-hotspots `
+            -result-dir benchmark_outputs\vtune_gpu_python_loop `
+            -- python export_tests\profile_dit_workload.py --device GPU --mode python_loop --iterations $iters --warmup 5 --output-json benchmark_outputs\dit_profile_python_loop.json
+          vtune -report summary `
+            -r benchmark_outputs\vtune_gpu_python_loop `
+            -format text `
+            -report-output benchmark_outputs\vtune_gpu_python_loop_summary.txt
 
       - name: Upload benchmark outputs
         uses: actions/upload-artifact@v4
