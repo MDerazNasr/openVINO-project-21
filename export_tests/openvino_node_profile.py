@@ -96,6 +96,78 @@ def aggregate_by_type(entries: list[dict]) -> list[dict]:
     return rows
 
 
+def node_category(entry: dict) -> str:
+    node_name = entry["node_name"]
+    node_type = entry["node_type"]
+
+    if node_type == "SDPA":
+        return "attention_sdpa"
+    if node_type == "MVN":
+        return "normalization_mvn"
+    if node_type == "FullyConnected":
+        if ".ff." in node_name or "ff.net" in node_name:
+            return "mlp_fully_connected"
+        if ".attn1." in node_name:
+            return "self_attention_projection"
+        if ".attn2." in node_name or "cross_attn" in node_name or "cross_attention" in node_name:
+            return "cross_attention_projection"
+        if "action_encoder" in node_name:
+            return "action_encoder_fully_connected"
+        if "state_encoder" in node_name:
+            return "state_encoder_fully_connected"
+        if "action_decoder" in node_name:
+            return "action_decoder_fully_connected"
+        if "time" in node_name or "timestep" in node_name:
+            return "timestep_fully_connected"
+        return "other_fully_connected"
+    if node_type in {"Add", "Multiply", "Relu", "Sin", "Cos"}:
+        return "elementwise"
+    if node_type in {
+        "Broadcast",
+        "Concat",
+        "Convert",
+        "Crop",
+        "Gather",
+        "Reshape",
+        "ScatterUpdate",
+        "ShapeOf",
+        "Squeeze",
+        "StridedSlice",
+        "Transpose",
+        "Unsqueeze",
+        "VariadicSplit",
+    }:
+        return "layout_shape_data_movement"
+    if node_type == "Result":
+        return "result"
+    return "other"
+
+
+def aggregate_by_category(entries: list[dict]) -> list[dict]:
+    grouped = defaultdict(lambda: {"real_time_ms": [], "cpu_time_ms": []})
+    for entry in entries:
+        grouped[node_category(entry)]["real_time_ms"].append(entry["real_time_ms"])
+        grouped[node_category(entry)]["cpu_time_ms"].append(entry["cpu_time_ms"])
+
+    total_real = sum(entry["real_time_ms"] for entry in entries)
+    rows = []
+    for category, values in grouped.items():
+        real_total = float(sum(values["real_time_ms"]))
+        rows.append(
+            {
+                "category": category,
+                "calls": len(values["real_time_ms"]),
+                "real_time_total_ms": real_total,
+                "real_time_percent": float((real_total / total_real) * 100) if total_real else 0.0,
+                "real_time_mean_ms": float(statistics.mean(values["real_time_ms"])),
+                "cpu_time_total_ms": float(sum(values["cpu_time_ms"])),
+                "cpu_time_mean_ms": float(statistics.mean(values["cpu_time_ms"])),
+            }
+        )
+    rows.sort(key=lambda row: row["real_time_total_ms"], reverse=True)
+    return rows
+
+
 def write_markdown(results: dict, path: Path) -> None:
     lines = [
         "# OpenVINO Node Profiling",
@@ -112,6 +184,26 @@ def write_markdown(results: dict, path: Path) -> None:
                 f"## {mode_name}",
                 "",
                 f"Wall-clock mean: `{mode_result['wall_clock_mean_ms']:.2f} ms`",
+                "",
+                "### Top Categories",
+                "",
+                "| Category | Calls | Real Total | Share | Real Mean |",
+                "|---|---:|---:|---:|---:|",
+            ]
+        )
+        for row in mode_result["by_category"]:
+            lines.append(
+                "| {category} | {calls} | {real_total:.3f} ms | {share:.2f}% | {real_mean:.3f} ms |".format(
+                    category=row["category"],
+                    calls=row["calls"],
+                    real_total=row["real_time_total_ms"],
+                    share=row["real_time_percent"],
+                    real_mean=row["real_time_mean_ms"],
+                )
+            )
+
+        lines.extend(
+            [
                 "",
                 "### Top Node Types",
                 "",
@@ -221,6 +313,7 @@ def run_profile(device: str, iterations: int, output_json: Path, output_md: Path
             "wall_clock_mean_ms": float(statistics.mean(wall_samples)),
             "wall_clock_min_ms": float(min(wall_samples)),
             "wall_clock_max_ms": float(max(wall_samples)),
+            "by_category": aggregate_by_category(all_entries),
             "by_type": aggregate_by_type(all_entries),
             "top_nodes": aggregate_entries(all_entries),
         }

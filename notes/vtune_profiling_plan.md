@@ -370,12 +370,31 @@ It profiles two modes on GPU:
 1. `fused_loop_4_step`
 2. `python_loop_4_step`
 
+It also groups nodes into rough categories:
+
+```text
+mlp_fully_connected
+self_attention_projection
+cross_attention_projection
+attention_sdpa
+normalization_mvn
+layout_shape_data_movement
+elementwise
+encoders / decoder
+```
+
 This is not a replacement for VTune GPU Hotspots because it does not expose the same low-level EU utilization, memory bandwidth, or hardware stall metrics. It is still useful because it can identify which OpenVINO graph node types and node names dominate runtime.
 
 Use this result to guide the next question:
 
 ```text
 Do MVN/AdaLayerNorm-like nodes show up as meaningful runtime, or is runtime dominated by MatMul/attention?
+```
+
+The category view answers the follow-up:
+
+```text
+If FullyConnected dominates, is it mostly MLP, attention projection, encoder/decoder, or something else?
 ```
 
 ### Metrics To Capture
