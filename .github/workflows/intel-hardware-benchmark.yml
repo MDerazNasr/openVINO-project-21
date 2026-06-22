@@ -63,6 +63,9 @@ jobs:
         shell: powershell
         run: |
           $src = "${{ github.event.inputs.artifact_dir }}"
+          if ([string]::IsNullOrWhiteSpace($src)) {
+            $src = "C:\Users\devcloud\openVINO-project-21-main\artifacts\openvino_ir"
+          }
           $dst = Join-Path $env:GITHUB_WORKSPACE "artifacts\openvino_ir"
           New-Item -ItemType Directory -Force -Path $dst | Out-Null
           Write-Host "Artifact source: $src"
