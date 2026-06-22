@@ -6,7 +6,15 @@ on:
       artifact_dir:
         description: Directory containing OpenVINO XML/BIN artifacts on the runner
         required: false
-        default: C:\Users\devcloud\openVINO-project-21-main\artifacts\openvino_ir
+        default: "C:\\Users\\devcloud\\openVINO-project-21-main\\artifacts\\openvino_ir"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/intel-hardware-benchmark.yml"
+      - "export_tests/benchmark_fused_vs_single_step_all_devices.py"
+      - "export_tests/convert_single_step_dit.py"
+      - "export_tests/convert_fused_loop_dit.py"
 
 jobs:
   benchmark:
