@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import os
 from pathlib import Path
 
 import numpy as np
@@ -177,6 +178,11 @@ def main() -> None:
     print(f"[INFO] Available devices: {core.available_devices}")
 
     for device in core.available_devices:
+        if device == "NPU" and os.environ.get("BENCHMARK_NPU", "0") != "1":
+            print("\n=== Device: NPU ===")
+            print("[SKIP] NPU benchmark disabled by default because the NPU compiler can abort the process on this dynamic DiT graph.")
+            print("[SKIP] Set BENCHMARK_NPU=1 to try it explicitly after CPU/GPU baselines are collected.")
+            continue
         try:
             benchmark_device(core, device)
         except Exception as exc:
