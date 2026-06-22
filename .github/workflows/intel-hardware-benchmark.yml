@@ -44,12 +44,17 @@ jobs:
             $zip = Join-Path $env:RUNNER_TEMP "unifolm-vla.zip"
             $extract = Join-Path $env:RUNNER_TEMP "unifolm-vla-src"
             New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
-            Invoke-WebRequest -Uri "https://github.com/unitreerobotics/unifolm-vla/archive/02d7bbc4b4742ca5d210031a416f06d333ca0261.zip" -OutFile $zip
+            Invoke-WebRequest -Uri "https://github.com/unitreerobotics/unifolm-vla/archive/refs/heads/main.zip" -OutFile $zip
             if (Test-Path $extract) { Remove-Item $extract -Recurse -Force }
             Expand-Archive -Path $zip -DestinationPath $extract -Force
             $expanded = Get-ChildItem $extract -Directory | Select-Object -First 1
             if (Test-Path $target) { Remove-Item $target -Recurse -Force }
             Move-Item $expanded.FullName $target
+          }
+          $patchRoot = Join-Path $env:GITHUB_WORKSPACE "export_tests\vendor_patches\unifolm_vla"
+          $sourceRoot = Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla\src\unifolm_vla"
+          if (Test-Path $patchRoot) {
+            Copy-Item (Join-Path $patchRoot "*") $sourceRoot -Recurse -Force
           }
           Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla\src\unifolm_vla") | Select-Object Name
 
