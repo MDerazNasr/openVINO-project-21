@@ -286,6 +286,20 @@ Decision rule:
 Choose the first kernel/runtime contribution based on measured hotspots, not assumptions.
 ```
 
+Current interim result:
+
+```text
+VTune is not installed/on PATH on the runner.
+OpenVINO node profiling was added as a fallback.
+Initial OpenVINO profile: FullyConnected/MatMul dominates; SDPA is second; MVN is visible but much smaller.
+```
+
+Presentation caveat:
+
+```text
+This is not a VTune result and should be described as interim OpenVINO runtime profiling.
+```
+
 ### Slide 12: Full VLA Status
 
 Be explicit:

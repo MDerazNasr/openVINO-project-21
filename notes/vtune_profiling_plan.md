@@ -237,6 +237,20 @@ Detailed note:
 notes/intel_runner_vtune_check_2026_06_23.md
 ```
 
+Interim profiling result:
+
+```text
+notes/openvino_node_profile_2026_06_23.md
+```
+
+Current hotspot signal from OpenVINO profiling:
+
+```text
+FullyConnected / MatMul dominates.
+SDPA is second.
+MVN is visible but much smaller.
+```
+
 ## Implemented Profiling Harness
 
 The profiling harness is:
