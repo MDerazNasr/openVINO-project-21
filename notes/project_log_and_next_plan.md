@@ -51,7 +51,7 @@ Update from June 23, 2026:
 - The normal Intel benchmark still passes after adding the profiling harness.
 - VTune is not currently available on the Intel runner `PATH`; see `notes/intel_runner_vtune_check_2026_06_23.md`.
 - OpenVINO runtime profiling was added as an interim hotspot map; see `notes/openvino_node_profile_2026_06_23.md`.
-- Initial OpenVINO node profile suggests the DiT GPU path is dominated by `FullyConnected` / MatMul nodes, with SDPA second and MVN visible but much smaller.
+- Initial OpenVINO node profile suggests the DiT GPU path is dominated by MLP `FullyConnected` / MatMul work, followed by self-attention projections. SDPA is visible, and MVN is measurable but much smaller.
 - Next profiling choice: locate/install VTune, or deepen the OpenVINO profile analysis by separating attention projections from MLP layers.
 
 ## What We Have Done

@@ -246,8 +246,9 @@ notes/openvino_node_profile_2026_06_23.md
 Current hotspot signal from OpenVINO profiling:
 
 ```text
-FullyConnected / MatMul dominates.
-SDPA is second.
+MLP FullyConnected / MatMul is the largest bucket.
+Self-attention projections are second.
+SDPA is visible.
 MVN is visible but much smaller.
 ```
 

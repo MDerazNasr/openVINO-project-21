@@ -291,7 +291,7 @@ Current interim result:
 ```text
 VTune is not installed/on PATH on the runner.
 OpenVINO node profiling was added as a fallback.
-Initial OpenVINO profile: FullyConnected/MatMul dominates; SDPA is second; MVN is visible but much smaller.
+Initial OpenVINO profile: MLP FullyConnected/MatMul dominates, self-attention projections are second, SDPA is visible, and MVN is much smaller.
 ```
 
 Presentation caveat:
