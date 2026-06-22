@@ -325,9 +325,44 @@ Keeping the workload script separate from VTune has two benefits:
 - [x] Create a benchmark mode that runs only fused-loop GPU repeatedly.
 - [x] Create a benchmark mode that runs only Python-loop GPU repeatedly.
 - [x] Add configurable iteration count for VTune collection.
+- [x] Add interim OpenVINO per-node profiling while VTune is unavailable.
 - [ ] Tune run duration enough for VTune to collect stable data.
 - [ ] Avoid mixing conversion/compile time into runtime profiling unless intentionally measuring compile.
 - [x] Save output directories as GitHub Actions artifacts or local zip files.
+
+## Interim OpenVINO Node Profiling
+
+Because VTune is not currently available on the Intel runner `PATH`, we added:
+
+```text
+export_tests/openvino_node_profile.py
+```
+
+This script compiles the DiT IR with:
+
+```text
+PERF_COUNT = YES
+```
+
+and writes:
+
+```text
+benchmark_outputs/openvino_node_profile.json
+benchmark_outputs/openvino_node_profile.md
+```
+
+It profiles two modes on GPU:
+
+1. `fused_loop_4_step`
+2. `python_loop_4_step`
+
+This is not a replacement for VTune GPU Hotspots because it does not expose the same low-level EU utilization, memory bandwidth, or hardware stall metrics. It is still useful because it can identify which OpenVINO graph node types and node names dominate runtime.
+
+Use this result to guide the next question:
+
+```text
+Do MVN/AdaLayerNorm-like nodes show up as meaningful runtime, or is runtime dominated by MatMul/attention?
+```
 
 ### Metrics To Capture
 

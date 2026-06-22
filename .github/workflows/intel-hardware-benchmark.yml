@@ -24,6 +24,7 @@ on:
       - "export_tests/benchmark_fused_vs_single_step_all_devices.py"
       - "export_tests/deep_hardware_benchmark.py"
       - "export_tests/profile_dit_workload.py"
+      - "export_tests/openvino_node_profile.py"
       - "export_tests/convert_single_step_dit.py"
       - "export_tests/convert_fused_loop_dit.py"
 
@@ -107,6 +108,12 @@ jobs:
         run: |
           python export_tests\deep_hardware_benchmark.py
           Get-Content benchmark_outputs\deep_hardware_benchmark.md
+
+      - name: Run OpenVINO node profiling
+        continue-on-error: true
+        shell: powershell
+        run: |
+          python export_tests\openvino_node_profile.py --device GPU --iterations 10
 
       - name: Check VTune availability
         shell: powershell
