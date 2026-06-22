@@ -27,6 +27,22 @@ Converting the VLM to OpenVINO IR allows the engine to optimize the transformer 
 - **Export Validation**: Successfully ran the OpenVINO conversion pipeline using a structural mock (due to local RAM/weight access constraints).
 - **IR Status**: Generated a template IR for the VLM feature extraction.
 
+## June 22 Update — Mock Export Guardrail
+
+The VLM conversion script was updated so mock fallback is no longer the default behavior.
+
+Reason:
+- The earlier mock/template export was useful for validating the conversion pipeline shape.
+- It is not valid for VLM latency, full VLA latency, or trained-model claims.
+- The mock `qwen_vlm_backbone.bin` artifact was tiny, not a real Qwen2.5-VL weight file.
+
+Current behavior:
+- `python export_tests/convert_qwen_vlm.py` now requires the real Qwen2.5-VL interface to load.
+- If real model loading fails, the script raises an error.
+- `--allow-mock` must be passed explicitly for structural tests.
+
+This prevents us from accidentally reporting a fake end-to-end VLA benchmark.
+
 ## Findings
 The Qwen2.5-VL backbone is significantly more complex to export than the DiT due to:
 1. **Multimodal Interface**: Requires four distinct input tensors (`input_ids`, `attention_mask`, `pixel_values`, `image_grid_thw`).

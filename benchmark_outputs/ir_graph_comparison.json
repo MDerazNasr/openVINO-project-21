@@ -1,0 +1,360 @@
+{
+  "single_step": {
+    "xml": {
+      "path": "/Users/mderaznasr/Documents/GitHub/openVINO-project-21/artifacts/openvino_ir/single_step_dit.xml",
+      "exists": true,
+      "bytes": 713379
+    },
+    "bin": {
+      "path": "/Users/mderaznasr/Documents/GitHub/openVINO-project-21/artifacts/openvino_ir/single_step_dit.bin",
+      "exists": true,
+      "bytes": 1123486632
+    },
+    "status": "ok",
+    "op_count": 1345,
+    "op_types": {
+      "Constant": 453,
+      "Convert": 272,
+      "Add": 191,
+      "MatMul": 123,
+      "Reshape": 64,
+      "Transpose": 64,
+      "Unsqueeze": 37,
+      "MVN": 33,
+      "Multiply": 20,
+      "VariadicSplit": 17,
+      "Gelu": 16,
+      "ScaledDotProductAttention": 16,
+      "Concat": 8,
+      "Gather": 4,
+      "Parameter": 4,
+      "Slice": 3,
+      "Swish": 3,
+      "Broadcast": 2,
+      "Cos": 2,
+      "Relu": 2,
+      "ShapeOf": 2,
+      "Sin": 2,
+      "Divide": 1,
+      "Exp": 1,
+      "Greater": 1,
+      "Mod": 1,
+      "Range": 1,
+      "Result": 1,
+      "Squeeze": 1
+    },
+    "focus_ops": {
+      "Add": 191,
+      "Concat": 8,
+      "Convert": 272,
+      "MVN": 33,
+      "MatMul": 123,
+      "Multiply": 20,
+      "Reshape": 64,
+      "ScaledDotProductAttention": 16,
+      "Softmax": 0,
+      "Transpose": 64,
+      "VariadicSplit": 17
+    },
+    "inputs": [
+      {
+        "index": 0,
+        "name": "vl_embs",
+        "shape": "[?,?,?]",
+        "type": "<Type: 'float32'>"
+      },
+      {
+        "index": 1,
+        "name": "actions",
+        "shape": "[?,?,?]",
+        "type": "<Type: 'float32'>"
+      },
+      {
+        "index": 2,
+        "name": "state",
+        "shape": "[?,?,?]",
+        "type": "<Type: 'float32'>"
+      },
+      {
+        "index": 3,
+        "name": "183",
+        "shape": "[?]",
+        "type": "<Type: 'int64_t'>"
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "output_0",
+        "shape": "[?,8,7]",
+        "type": "<Type: 'float32'>"
+      }
+    ]
+  },
+  "fused_loop": {
+    "xml": {
+      "path": "/Users/mderaznasr/Documents/GitHub/openVINO-project-21/artifacts/openvino_ir/fused_loop_dit.xml",
+      "exists": true,
+      "bytes": 2315214
+    },
+    "bin": {
+      "path": "/Users/mderaznasr/Documents/GitHub/openVINO-project-21/artifacts/openvino_ir/fused_loop_dit.bin",
+      "exists": true,
+      "bytes": 1123486626
+    },
+    "status": "ok",
+    "op_count": 4270,
+    "op_types": {
+      "Constant": 1330,
+      "Add": 711,
+      "Convert": 676,
+      "MatMul": 438,
+      "Reshape": 216,
+      "Transpose": 208,
+      "Unsqueeze": 156,
+      "MVN": 132,
+      "Multiply": 92,
+      "VariadicSplit": 68,
+      "Gelu": 64,
+      "ScaledDotProductAttention": 64,
+      "Concat": 22,
+      "Gather": 18,
+      "Slice": 12,
+      "Swish": 12,
+      "Broadcast": 9,
+      "Cos": 8,
+      "Sin": 8,
+      "ShapeOf": 6,
+      "Relu": 5,
+      "Exp": 4,
+      "Range": 4,
+      "Parameter": 3,
+      "Divide": 1,
+      "Greater": 1,
+      "Mod": 1,
+      "Result": 1
+    },
+    "focus_ops": {
+      "Add": 711,
+      "Concat": 22,
+      "Convert": 676,
+      "MVN": 132,
+      "MatMul": 438,
+      "Multiply": 92,
+      "Reshape": 216,
+      "ScaledDotProductAttention": 64,
+      "Softmax": 0,
+      "Transpose": 208,
+      "VariadicSplit": 68
+    },
+    "inputs": [
+      {
+        "index": 0,
+        "name": "vl_embs",
+        "shape": "[?,?,?]",
+        "type": "<Type: 'float32'>"
+      },
+      {
+        "index": 1,
+        "name": "initial_noise",
+        "shape": "[?,?,?]",
+        "type": "<Type: 'float32'>"
+      },
+      {
+        "index": 2,
+        "name": "state",
+        "shape": "[?,?,?]",
+        "type": "<Type: 'float32'>"
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "output_0",
+        "shape": "[?,?,7]",
+        "type": "<Type: 'float32'>"
+      }
+    ]
+  },
+  "comparison": {
+    "xml_size_ratio": 3.245419335304235,
+    "bin_size_ratio": 0.9999999946594825,
+    "op_count_ratio": 3.174721189591078,
+    "op_deltas": {
+      "Add": {
+        "single": 191,
+        "fused": 711,
+        "delta": 520,
+        "ratio": 3.722513089005236
+      },
+      "Broadcast": {
+        "single": 2,
+        "fused": 9,
+        "delta": 7,
+        "ratio": 4.5
+      },
+      "Concat": {
+        "single": 8,
+        "fused": 22,
+        "delta": 14,
+        "ratio": 2.75
+      },
+      "Constant": {
+        "single": 453,
+        "fused": 1330,
+        "delta": 877,
+        "ratio": 2.93598233995585
+      },
+      "Convert": {
+        "single": 272,
+        "fused": 676,
+        "delta": 404,
+        "ratio": 2.485294117647059
+      },
+      "Cos": {
+        "single": 2,
+        "fused": 8,
+        "delta": 6,
+        "ratio": 4.0
+      },
+      "Divide": {
+        "single": 1,
+        "fused": 1,
+        "delta": 0,
+        "ratio": 1.0
+      },
+      "Exp": {
+        "single": 1,
+        "fused": 4,
+        "delta": 3,
+        "ratio": 4.0
+      },
+      "Gather": {
+        "single": 4,
+        "fused": 18,
+        "delta": 14,
+        "ratio": 4.5
+      },
+      "Gelu": {
+        "single": 16,
+        "fused": 64,
+        "delta": 48,
+        "ratio": 4.0
+      },
+      "Greater": {
+        "single": 1,
+        "fused": 1,
+        "delta": 0,
+        "ratio": 1.0
+      },
+      "MVN": {
+        "single": 33,
+        "fused": 132,
+        "delta": 99,
+        "ratio": 4.0
+      },
+      "MatMul": {
+        "single": 123,
+        "fused": 438,
+        "delta": 315,
+        "ratio": 3.5609756097560976
+      },
+      "Mod": {
+        "single": 1,
+        "fused": 1,
+        "delta": 0,
+        "ratio": 1.0
+      },
+      "Multiply": {
+        "single": 20,
+        "fused": 92,
+        "delta": 72,
+        "ratio": 4.6
+      },
+      "Parameter": {
+        "single": 4,
+        "fused": 3,
+        "delta": -1,
+        "ratio": 0.75
+      },
+      "Range": {
+        "single": 1,
+        "fused": 4,
+        "delta": 3,
+        "ratio": 4.0
+      },
+      "Relu": {
+        "single": 2,
+        "fused": 5,
+        "delta": 3,
+        "ratio": 2.5
+      },
+      "Reshape": {
+        "single": 64,
+        "fused": 216,
+        "delta": 152,
+        "ratio": 3.375
+      },
+      "Result": {
+        "single": 1,
+        "fused": 1,
+        "delta": 0,
+        "ratio": 1.0
+      },
+      "ScaledDotProductAttention": {
+        "single": 16,
+        "fused": 64,
+        "delta": 48,
+        "ratio": 4.0
+      },
+      "ShapeOf": {
+        "single": 2,
+        "fused": 6,
+        "delta": 4,
+        "ratio": 3.0
+      },
+      "Sin": {
+        "single": 2,
+        "fused": 8,
+        "delta": 6,
+        "ratio": 4.0
+      },
+      "Slice": {
+        "single": 3,
+        "fused": 12,
+        "delta": 9,
+        "ratio": 4.0
+      },
+      "Squeeze": {
+        "single": 1,
+        "fused": 0,
+        "delta": -1,
+        "ratio": 0.0
+      },
+      "Swish": {
+        "single": 3,
+        "fused": 12,
+        "delta": 9,
+        "ratio": 4.0
+      },
+      "Transpose": {
+        "single": 64,
+        "fused": 208,
+        "delta": 144,
+        "ratio": 3.25
+      },
+      "Unsqueeze": {
+        "single": 37,
+        "fused": 156,
+        "delta": 119,
+        "ratio": 4.216216216216216
+      },
+      "VariadicSplit": {
+        "single": 17,
+        "fused": 68,
+        "delta": 51,
+        "ratio": 4.0
+      }
+    }
+  }
+}
