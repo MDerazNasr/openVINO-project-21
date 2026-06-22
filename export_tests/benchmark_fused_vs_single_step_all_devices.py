@@ -25,12 +25,49 @@ def require_ir_pair(xml_path: Path) -> None:
         raise RuntimeError(f"IR weights look too small: {bin_path} ({bin_path.stat().st_size} bytes)")
 
 
-def make_inputs() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def static_shape(port) -> tuple[int, ...]:
+    return tuple(int(dim) for dim in port.get_partial_shape().to_shape())
+
+
+def infer_input_shapes(compiled: ov.CompiledModel) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
+    vl_shape = None
+    action_shape = None
+    state_shape = None
+    timestep_shape = None
+
+    for inp in compiled.inputs:
+        name = inp.get_any_name().lower()
+        shape = static_shape(inp)
+
+        if "vl_embs" in name or (len(shape) == 3 and shape[-1] == 2048):
+            vl_shape = shape
+        elif "state" in name or (len(shape) == 3 and shape[1] == 1):
+            state_shape = shape
+        elif "action" in name or "initial_noise" in name or len(shape) == 3:
+            if shape != vl_shape and shape != state_shape:
+                action_shape = shape
+        elif "time" in name or len(shape) == 1:
+            timestep_shape = shape
+
+    missing = {
+        "vl_embs": vl_shape,
+        "actions": action_shape,
+        "state": state_shape,
+        "timestep": timestep_shape,
+    }
+    if any(value is None for value in missing.values()):
+        raise RuntimeError(f"Could not infer all input shapes: {missing}")
+
+    return vl_shape, action_shape, state_shape, timestep_shape
+
+
+def make_inputs(compiled: ov.CompiledModel) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     rng = np.random.default_rng(42)
-    vl_embs = rng.standard_normal((1, 512, 2048), dtype=np.float32)
-    actions = rng.standard_normal((1, 8, 7), dtype=np.float32)
-    state = rng.standard_normal((1, 1, 8), dtype=np.float32)
-    timestep = np.array([0], dtype=np.int64)
+    vl_shape, action_shape, state_shape, timestep_shape = infer_input_shapes(compiled)
+    vl_embs = rng.standard_normal(vl_shape, dtype=np.float32)
+    actions = rng.standard_normal(action_shape, dtype=np.float32)
+    state = rng.standard_normal(state_shape, dtype=np.float32)
+    timestep = np.zeros(timestep_shape, dtype=np.int64)
     return vl_embs, actions, state, timestep
 
 
@@ -97,7 +134,7 @@ def benchmark_device(core: ov.Core, device: str) -> None:
     single_compiled = core.compile_model(single_model, device)
     fused_compiled = core.compile_model(fused_model, device)
 
-    vl_embs, actions, state, timestep = make_inputs()
+    vl_embs, actions, state, timestep = make_inputs(single_compiled)
 
     single_inputs = map_inputs(single_compiled, vl_embs, actions, state, timestep)
     fused_inputs = map_inputs(fused_compiled, vl_embs, actions, state, timestep)

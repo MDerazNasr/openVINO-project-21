@@ -13,6 +13,7 @@ IR_DIR = REPO_ROOT / "artifacts" / "openvino_ir"
 # Add project src to path
 sys.path.append(str(UNIFOLM_SRC))
 from unifolm_vla.model.modules.action_model.DiT_ActionHeader_v2 import FlowmatchingActionHead_v2
+from unifolm_vla.rlds_dataloader.constants import ACTION_DIM, NUM_ACTIONS_CHUNK, PROPRIO_DIM
 from FullLoopDiTWrapper import FullLoopDiTWrapper
 
 def main():
@@ -34,9 +35,9 @@ def main():
     batch_size = 1
     seq_len = 512          
     vl_dim = 2048          
-    action_horizon = 8     
-    action_dim = 7         
-    state_dim = 8          
+    action_horizon = NUM_ACTIONS_CHUNK
+    action_dim = ACTION_DIM
+    state_dim = PROPRIO_DIM
 
     vl_embs = torch.randn(batch_size, seq_len, vl_dim, dtype=torch.float32)
     noise = torch.randn(batch_size, action_horizon, action_dim, dtype=torch.float32)
@@ -55,6 +56,7 @@ def main():
         
     except Exception as e:
         print(f"[FAILURE] Conversion failed with error:\n{e}")
+        raise
 
 if __name__ == "__main__":
     main()

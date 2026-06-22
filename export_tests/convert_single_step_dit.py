@@ -14,6 +14,7 @@ IR_DIR = REPO_ROOT / "artifacts" / "openvino_ir"
 sys.path.append(str(UNIFOLM_SRC))
 
 from unifolm_vla.model.modules.action_model.DiT_ActionHeader import get_action_model
+from unifolm_vla.rlds_dataloader.constants import ACTION_DIM, NUM_ACTIONS_CHUNK, PROPRIO_DIM
 from single_step_dit_wrapper import SingleStepDiTWrapper
 
 def main():
@@ -37,9 +38,9 @@ def main():
     batch_size = 1
     seq_len = 512          # Qwen output seq_len
     vl_dim = 2048          # Qwen hidden dimension (vl_hidden_dim)
-    action_horizon = 8     # LIBERO NUM_ACTIONS_CHUNK
-    action_dim = 7         # LIBERO ACTION_DIM
-    state_dim = 8          # LIBERO PROPRIO_DIM
+    action_horizon = NUM_ACTIONS_CHUNK
+    action_dim = ACTION_DIM
+    state_dim = PROPRIO_DIM
 
     vl_embs = torch.randn(batch_size, seq_len, vl_dim, dtype=torch.float32)
     actions = torch.randn(batch_size, action_horizon, action_dim, dtype=torch.float32)
