@@ -22,7 +22,7 @@ jobs:
         run: |
           python --version
           python -m pip install --upgrade pip
-          python -m pip install openvino numpy torch omegaconf diffusers transformers accelerate safetensors pillow
+          python -m pip install openvino numpy torch omegaconf diffusers transformers accelerate safetensors pillow qwen-vl-utils
           python -c "import openvino as ov, torch, transformers; print('OpenVINO', ov.__version__); print('torch', torch.__version__); print('transformers', transformers.__version__); print('devices', ov.Core().available_devices)"
 
       - name: Prepare UnifoLM source
