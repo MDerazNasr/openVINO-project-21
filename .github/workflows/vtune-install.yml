@@ -1,0 +1,97 @@
+name: VTune Install
+
+on:
+  workflow_dispatch:
+
+jobs:
+  install-vtune:
+    runs-on: [self-hosted, Windows]
+    timeout-minutes: 90
+
+    steps:
+      - name: Install Intel oneAPI Base Toolkit
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path benchmark_outputs | Out-Null
+          $log = "benchmark_outputs\vtune_install.log"
+          if (Test-Path $log) { Remove-Item $log -Force }
+
+          function Write-Both($message) {
+            Write-Host $message
+            Add-Content -Path $log -Value $message
+          }
+
+          $existing = Get-Command vtune -ErrorAction SilentlyContinue
+          if ($existing) {
+            Write-Both "VTune already available on PATH: $($existing.Source)"
+            vtune -version 2>&1 | ForEach-Object { Write-Both "$_" }
+            exit 0
+          }
+
+          $commonVtunePaths = @(
+            "C:\Program Files (x86)\Intel\oneAPI\vtune\latest\bin64\vtune.exe",
+            "C:\Program Files\Intel\oneAPI\vtune\latest\bin64\vtune.exe"
+          )
+          foreach ($candidate in $commonVtunePaths) {
+            if (Test-Path $candidate) {
+              Write-Both "VTune already installed at: $candidate"
+              & $candidate -version 2>&1 | ForEach-Object { Write-Both "$_" }
+              exit 0
+            }
+          }
+
+          $winget = Get-Command winget -ErrorAction SilentlyContinue
+          if (!$winget) {
+            throw "winget is not available; cannot install Intel.OneAPI.BaseToolkit automatically."
+          }
+
+          Write-Both "Installing Intel.OneAPI.BaseToolkit with winget..."
+          Write-Both "This can take a long time because the package is large."
+
+          winget install `
+            --id Intel.OneAPI.BaseToolkit `
+            --exact `
+            --silent `
+            --accept-package-agreements `
+            --accept-source-agreements `
+            --disable-interactivity 2>&1 |
+            ForEach-Object { Write-Both "$_" }
+
+      - name: Verify VTune after install
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $paths = @(
+            "C:\Program Files (x86)\Intel\oneAPI\vtune\latest\bin64\vtune.exe",
+            "C:\Program Files\Intel\oneAPI\vtune\latest\bin64\vtune.exe"
+          )
+
+          $vtune = Get-Command vtune -ErrorAction SilentlyContinue
+          if ($vtune) {
+            Write-Host "vtune found on PATH: $($vtune.Source)"
+            vtune -version
+            exit 0
+          }
+
+          foreach ($path in $paths) {
+            if (Test-Path $path) {
+              Write-Host "vtune found at: $path"
+              & $path -version
+              exit 0
+            }
+          }
+
+          Write-Host "Searching install roots for vtune.exe..."
+          Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)" -Filter vtune.exe -Recurse -File -ErrorAction SilentlyContinue |
+            Select-Object -First 20 |
+            ForEach-Object { Write-Host $_.FullName }
+
+          throw "VTune install did not produce a discoverable vtune.exe."
+
+      - name: Upload install logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vtune-install
+          path: benchmark_outputs/
