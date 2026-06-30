@@ -11,6 +11,10 @@ on:
         description: Transformers attention implementation. eager is safest for CPU/export.
         required: false
         default: "eager"
+      run_end_to_end:
+        description: Run VLM IR -> fused DiT IR chained benchmark
+        required: false
+        default: "true"
 
 jobs:
   export-vlm-onnx:
@@ -135,6 +139,27 @@ jobs:
         run: |
           python export_tests\benchmark_qwen_vlm_openvino.py
           Get-Content benchmark_outputs\qwen_vlm_openvino_benchmark.md
+
+      - name: Generate VLM-compatible DiT IR
+        if: success() && github.event.inputs.run_end_to_end == 'true'
+        shell: powershell
+        run: |
+          $env:VLA_VL_SEQ_LEN = "92"
+          $env:VLA_VL_DIM = "3584"
+          Remove-Item artifacts\openvino_ir\single_step_dit.* -Force -ErrorAction SilentlyContinue
+          Remove-Item artifacts\openvino_ir\fused_loop_dit.* -Force -ErrorAction SilentlyContinue
+          python export_tests\convert_single_step_dit.py
+          python export_tests\convert_fused_loop_dit.py
+          Get-ChildItem artifacts\openvino_ir -Filter "*dit.*" | Select-Object Name, Length
+
+      - name: Run end-to-end OpenVINO VLA benchmark
+        if: success() && github.event.inputs.run_end_to_end == 'true'
+        shell: powershell
+        run: |
+          $env:VLA_VL_SEQ_LEN = "92"
+          $env:VLA_VL_DIM = "3584"
+          python export_tests\benchmark_end_to_end_vla_openvino.py
+          Get-Content benchmark_outputs\end_to_end_vla_openvino_benchmark.md
 
       - name: Upload VLM benchmark reports
         uses: actions/upload-artifact@v4
