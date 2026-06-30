@@ -130,6 +130,32 @@ So the correct current statement is:
 4. Try a local/static-shape patch of Qwen visual window-indexing only if it preserves semantics for fixed image size.
 5. Continue using the GitHub runner tunnel while SSH remains unresolved.
 
+## ONNX Fallback Update
+
+After the direct PyTorch-to-OpenVINO path failed in Qwen2.5-VL visual indexing/list operations, we tested ONNX as an alternate bridge.
+
+What changed:
+
+- Added `export_tests/export_qwen_vlm_onnx.py`.
+- Added `.github/workflows/vlm-onnx-export-check.yml`.
+- Installed `onnx` and `onnxscript`.
+- Forced the legacy ONNX tracer with `dynamo=False` after the newer Torch ONNX exporter failed on data-dependent `grid_thw` integer extraction in `get_vision_position_ids`.
+- Set UTF-8 logging variables on Windows to avoid console encoding failures.
+
+Result:
+
+- The real UnifoLM VLM checkpoint loaded.
+- The processor-backed Qwen multimodal inputs were used.
+- ONNX export succeeded.
+- ONNX inspection succeeded.
+
+Current operational issue:
+
+- Uploading the full ONNX artifact through GitHub Actions was too slow/large and left the self-hosted runner stuck in the upload step.
+- The next workflow revision converts the ONNX model to OpenVINO IR on the runner before artifact upload and uploads only logs plus the OpenVINO IR.
+
+This is important because ONNX export appears to be a viable route around the direct OpenVINO PyTorch frontend blocker. The remaining test is whether OpenVINO can ingest the generated ONNX and produce a usable IR for VLM benchmarking.
+
 ## Presentation Wording
 
 Short version:
