@@ -1,0 +1,105 @@
+name: VLM Export Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      allow_mock:
+        description: Allow mock VLM export. Keep false for real benchmark work.
+        required: false
+        default: "false"
+
+jobs:
+  export-vlm:
+    runs-on: self-hosted
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Python and dependency inventory
+        shell: powershell
+        run: |
+          python --version
+          python -m pip install --upgrade pip
+          python -m pip install openvino numpy torch omegaconf diffusers transformers accelerate safetensors pillow
+          python -c "import openvino as ov, torch, transformers; print('OpenVINO', ov.__version__); print('torch', torch.__version__); print('transformers', transformers.__version__); print('devices', ov.Core().available_devices)"
+
+      - name: Prepare UnifoLM source
+        shell: powershell
+        run: |
+          $src = Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla\src\unifolm_vla"
+          if (!(Test-Path $src)) {
+            Write-Host "UnifoLM source missing from checkout; downloading source archive."
+            $target = Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla"
+            $zip = Join-Path $env:RUNNER_TEMP "unifolm-vla.zip"
+            $extract = Join-Path $env:RUNNER_TEMP "unifolm-vla-src"
+            New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
+            Invoke-WebRequest -Uri "https://github.com/unitreerobotics/unifolm-vla/archive/refs/heads/main.zip" -OutFile $zip
+            if (Test-Path $extract) { Remove-Item $extract -Recurse -Force }
+            Expand-Archive -Path $zip -DestinationPath $extract -Force
+            $expanded = Get-ChildItem $extract -Directory | Select-Object -First 1
+            if (Test-Path $target) { Remove-Item $target -Recurse -Force }
+            Move-Item $expanded.FullName $target
+          }
+          $patchRoot = Join-Path $env:GITHUB_WORKSPACE "export_tests\vendor_patches\unifolm_vla"
+          $sourceRoot = Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla\src\unifolm_vla"
+          if (Test-Path $patchRoot) {
+            Copy-Item (Join-Path $patchRoot "*") $sourceRoot -Recurse -Force
+          }
+          Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla\src\unifolm_vla") | Select-Object Name
+
+      - name: Check existing VLM artifact
+        shell: powershell
+        run: |
+          $ir = Join-Path $env:GITHUB_WORKSPACE "artifacts\openvino_ir"
+          New-Item -ItemType Directory -Force -Path $ir | Out-Null
+          Get-ChildItem $ir -Filter "qwen_vlm_backbone.*" -ErrorAction SilentlyContinue | Select-Object Name, Length
+
+      - name: Run VLM export
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path benchmark_outputs | Out-Null
+          $allowMock = "${{ github.event.inputs.allow_mock }}"
+          if ($allowMock -eq "true") {
+            python export_tests\convert_qwen_vlm.py --allow-mock *>&1 | Tee-Object -FilePath benchmark_outputs\vlm_export.log
+          } else {
+            python export_tests\convert_qwen_vlm.py *>&1 | Tee-Object -FilePath benchmark_outputs\vlm_export.log
+          }
+
+      - name: Smoke-load exported VLM IR
+        if: success()
+        shell: powershell
+        run: |
+          @'
+          from pathlib import Path
+          import openvino as ov
+
+          root = Path.cwd()
+          xml = root / "artifacts" / "openvino_ir" / "qwen_vlm_backbone.xml"
+          bin_path = root / "artifacts" / "openvino_ir" / "qwen_vlm_backbone.bin"
+          print("xml_exists", xml.exists(), "xml_bytes", xml.stat().st_size if xml.exists() else None)
+          print("bin_exists", bin_path.exists(), "bin_bytes", bin_path.stat().st_size if bin_path.exists() else None)
+          core = ov.Core()
+          model = core.read_model(xml)
+          print("inputs")
+          for inp in model.inputs:
+              names = list(inp.get_names())
+              name = names[0] if names else "<unnamed>"
+              print(name, inp.get_partial_shape(), inp.get_element_type())
+          print("outputs")
+          for out in model.outputs:
+              names = list(out.get_names())
+              name = names[0] if names else "<unnamed>"
+              print(name, out.get_partial_shape(), out.get_element_type())
+          '@ | python - *>&1 | Tee-Object -FilePath benchmark_outputs\vlm_smoke_load.log
+
+      - name: Upload VLM export outputs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vlm-export-check
+          path: |
+            benchmark_outputs/
+            artifacts/openvino_ir/qwen_vlm_backbone.xml
+            artifacts/openvino_ir/qwen_vlm_backbone.bin
