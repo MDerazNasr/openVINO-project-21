@@ -90,6 +90,45 @@ jobs:
           print("node_count", len(model.graph.node))
           '@ | python - *>&1 | Tee-Object -FilePath benchmark_outputs\vlm_onnx_inspect.log
 
+      - name: Convert ONNX VLM to OpenVINO IR
+        if: success()
+        shell: powershell
+        run: |
+          cmd /c "python export_tests\convert_onnx_vlm_to_openvino.py > benchmark_outputs\vlm_onnx_to_openvino.log 2>&1"
+          $exitCode = $LASTEXITCODE
+          Get-Content benchmark_outputs\vlm_onnx_to_openvino.log
+          if ($exitCode -ne 0) {
+            Write-Error "ONNX to OpenVINO conversion failed with exit code $exitCode"
+            exit $exitCode
+          }
+
+      - name: Inspect OpenVINO VLM IR
+        if: success()
+        shell: powershell
+        run: |
+          Get-ChildItem artifacts\openvino_ir -Filter "qwen_vlm_backbone_from_onnx.*" -Force | Select-Object Name, Length
+          @'
+          from pathlib import Path
+          import openvino as ov
+
+          xml = Path("artifacts/openvino_ir/qwen_vlm_backbone_from_onnx.xml")
+          bin_path = xml.with_suffix(".bin")
+          print("xml_exists", xml.exists(), "xml_bytes", xml.stat().st_size if xml.exists() else None)
+          print("bin_exists", bin_path.exists(), "bin_bytes", bin_path.stat().st_size if bin_path.exists() else None)
+          core = ov.Core()
+          model = core.read_model(xml)
+          print("inputs")
+          for inp in model.inputs:
+              names = list(inp.get_names())
+              name = names[0] if names else "<unnamed>"
+              print(name, inp.get_partial_shape(), inp.get_element_type())
+          print("outputs")
+          for out in model.outputs:
+              names = list(out.get_names())
+              name = names[0] if names else "<unnamed>"
+              print(name, out.get_partial_shape(), out.get_element_type())
+          '@ | python - *>&1 | Tee-Object -FilePath benchmark_outputs\vlm_openvino_ir_inspect.log
+
       - name: Upload ONNX export outputs
         uses: actions/upload-artifact@v4
         if: always()
@@ -97,4 +136,5 @@ jobs:
           name: vlm-onnx-export-check
           path: |
             benchmark_outputs/
-            artifacts/onnx/
+            artifacts/openvino_ir/qwen_vlm_backbone_from_onnx.xml
+            artifacts/openvino_ir/qwen_vlm_backbone_from_onnx.bin
