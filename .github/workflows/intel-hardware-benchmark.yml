@@ -17,7 +17,7 @@ on:
         required: false
         default: "5"
       vtune_target:
-        description: VTune target workload: e2e, vlm, dit, fused_dit, or python_loop_dit
+        description: "VTune target workload: e2e, vlm, dit, fused_dit, or python_loop_dit"
         required: false
         default: "e2e"
       force_regenerate_dit:
