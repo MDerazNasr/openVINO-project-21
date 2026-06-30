@@ -254,3 +254,58 @@ Important caveat:
 Short version:
 
 "I moved the VLM blocker forward. It is no longer just a missing artifact. The direct PyTorch-to-OpenVINO conversion path failed on Qwen2.5-VL visual indexing/list operations, so I used ONNX as a bridge. With the real UnifoLM VLM checkpoint, ONNX export now succeeds, ONNX-to-OpenVINO conversion succeeds, and the real VLM IR benchmarks on Intel CPU/GPU. The GPU VLM latency is about 207 ms, which suggests the VLM is likely the dominant part of end-to-end VLA latency compared with the fused DiT action head at about 54 ms. I am still not claiming full end-to-end VLA latency until I validate the VLM-output-to-DiT-input handoff."
+
+## End-to-End OpenVINO VLA Chain Benchmark Update
+
+Workflow run:
+
+- `VLM ONNX Export Check`
+- Run: `https://github.com/MDerazNasr/openVINO-project-21/actions/runs/28477498076`
+- Artifact: `https://github.com/MDerazNasr/openVINO-project-21/actions/runs/28477498076/artifacts/7994747613`
+
+What passed:
+
+- Real UnifoLM VLM checkpoint loaded from `unitreerobotics/Unifolm-VLM-Base`.
+- Qwen processor-backed ONNX export passed.
+- ONNX-to-OpenVINO conversion passed.
+- VLM-only OpenVINO benchmark passed.
+- DiT IR was regenerated with VLM-compatible conditioning shape:
+  - `vl_seq_len=92`
+  - `vl_dim=3584`
+- The benchmark executed the real OpenVINO model chain:
+  - VLM IR inference
+  - VLM output tensor handoff in Python
+  - fused DiT IR inference
+
+End-to-end tensor handoff:
+
+- VLM output: `[1, 92, 3584]`
+- Fused DiT output: `[1, 25, 23]`
+
+Latency:
+
+| Device | VLM Mean | DiT Mean With VLM Output | End-to-End Mean | End-to-End P95 | Status |
+|---|---:|---:|---:|---:|---|
+| CPU | `31935.97 ms` | `1875.52 ms` | `78387.66 ms` | `79264.43 ms` | ok |
+| GPU | `209.27 ms` | `54.73 ms` | `282.03 ms` | `283.64 ms` | ok |
+| NPU | n/a | n/a | n/a | n/a | skipped |
+
+Interpretation:
+
+- This is the first successful real OpenVINO VLM-to-DiT chain benchmark.
+- The GPU path is stable and gives a practical current end-to-end model-chain number of about `282 ms`.
+- The VLM remains the dominant GPU latency component:
+  - VLM: about `209 ms`
+  - fused DiT: about `55 ms`
+- The measured chained GPU runtime is about `18 ms` higher than the simple component sum, which captures Python-side handoff/orchestration and any extra runtime overhead in the chained measurement.
+- CPU numbers are valid as a rough baseline but have high variance and are not the main deployment target.
+
+Important caveat:
+
+- This benchmark measures the OpenVINO model chain, not the complete application pipeline.
+- It does not include Qwen processor/image preprocessing before the VLM inputs are constructed.
+- It also uses synthetic deterministic benchmark inputs rather than a real robot episode/prompt/image stream.
+
+Current presentation wording:
+
+"I now have a true OpenVINO model-chain benchmark for the VLA path. The real Qwen/UnifoLM VLM checkpoint exports through ONNX into OpenVINO IR, the VLM output shape is `[1, 92, 3584]`, and that tensor feeds a VLM-compatible fused DiT action head that outputs `[1, 25, 23]`. On the Intel Arc 140V GPU, the measured VLM plus fused-DiT OpenVINO chain is about `282 ms` end-to-end. The important caveat is that this does not include Qwen processor/image preprocessing, so I would describe it as OpenVINO model-chain latency rather than full application latency."
