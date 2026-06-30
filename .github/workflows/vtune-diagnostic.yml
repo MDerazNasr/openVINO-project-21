@@ -84,10 +84,16 @@ jobs:
           $winget = Get-Command winget -ErrorAction SilentlyContinue
           if ($winget) {
             Write-Both "winget found: $($winget.Source)"
+            Write-Both "Installed packages matching Intel VTune:"
             winget list --name "Intel VTune" 2>&1 | ForEach-Object { Write-Both "  $_" }
+            Write-Both "Search results for vtune:"
+            winget search vtune 2>&1 | ForEach-Object { Write-Both "  $_" }
+            Write-Both "Search results for oneAPI profiler/toolkit:"
+            winget search oneapi 2>&1 | ForEach-Object { Write-Both "  $_" }
           } else {
             Write-Both "winget not found"
           }
+          exit 0
 
       - name: Upload diagnostic
         uses: actions/upload-artifact@v4
