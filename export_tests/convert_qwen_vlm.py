@@ -90,26 +90,48 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
-    print("[INFO] Loading configuration and Qwen model...")
-    torch.manual_seed(42)
-    
+def load_qwen_vlm_interface(base_vlm, attn_implementation="eager", torch_dtype="float32", device_map=""):
     config_path = UNIFOLM_SRC / "unifolm_vla" / "config" / "training" / "unifolm_vla_train.yaml"
     config = OmegaConf.load(config_path)
-    if args.base_vlm:
-        config.framework.qwenvl.base_vlm = args.base_vlm
-    config.framework.qwenvl.attn_implementation = args.attn_implementation
-    config.framework.qwenvl.torch_dtype = args.torch_dtype
-    config.framework.qwenvl.device_map = args.device_map
+    if base_vlm:
+        config.framework.qwenvl.base_vlm = base_vlm
+    config.framework.qwenvl.attn_implementation = attn_implementation
+    config.framework.qwenvl.torch_dtype = torch_dtype
+    config.framework.qwenvl.device_map = device_map
     print(f"[INFO] base_vlm: {config.framework.qwenvl.base_vlm}")
     print(f"[INFO] attn_implementation: {config.framework.qwenvl.attn_implementation}")
     print(f"[INFO] torch_dtype: {config.framework.qwenvl.torch_dtype}")
     print(f"[INFO] device_map: {config.framework.qwenvl.device_map or '<none>'}")
-    
+    return get_qwen2_5_interface(config=config)
+
+
+def build_qwen_export_inputs(vlm_interface):
+    image = Image.new("RGB", (224, 224), color=(127, 127, 127))
+    inputs = vlm_interface.build_qwenvl_inputs([[image]], ["move the robot arm to the target"])
+    input_ids = inputs["input_ids"]
+    attention_mask = inputs["attention_mask"]
+    pixel_values = inputs["pixel_values"].to(torch.float32)
+    image_grid_thw = inputs["image_grid_thw"]
+    print(f"[INFO] input_ids shape: {tuple(input_ids.shape)}")
+    print(f"[INFO] attention_mask shape: {tuple(attention_mask.shape)}")
+    print(f"[INFO] pixel_values shape: {tuple(pixel_values.shape)}")
+    print(f"[INFO] image_grid_thw shape: {tuple(image_grid_thw.shape)}")
+    return input_ids, attention_mask, pixel_values, image_grid_thw
+
+
+def main():
+    args = parse_args()
+    print("[INFO] Loading configuration and Qwen model...")
+    torch.manual_seed(42)
+
     using_mock = False
     try:
-        vlm_interface = get_qwen2_5_interface(config=config)
+        vlm_interface = load_qwen_vlm_interface(
+            base_vlm=args.base_vlm,
+            attn_implementation=args.attn_implementation,
+            torch_dtype=args.torch_dtype,
+            device_map=args.device_map,
+        )
         wrapper = QwenVLForwardWrapper(vlm_interface).eval()
     except Exception as e:
         if not args.allow_mock:
@@ -132,16 +154,7 @@ def main():
         pixel_values = torch.randn((1, 3, 224, 224), dtype=torch.float32)
         image_grid_thw = torch.tensor([[1, 28, 28]], dtype=torch.long)
     else:
-        image = Image.new("RGB", (224, 224), color=(127, 127, 127))
-        inputs = vlm_interface.build_qwenvl_inputs([[image]], ["move the robot arm to the target"])
-        input_ids = inputs["input_ids"]
-        attention_mask = inputs["attention_mask"]
-        pixel_values = inputs["pixel_values"].to(torch.float32)
-        image_grid_thw = inputs["image_grid_thw"]
-        print(f"[INFO] input_ids shape: {tuple(input_ids.shape)}")
-        print(f"[INFO] attention_mask shape: {tuple(attention_mask.shape)}")
-        print(f"[INFO] pixel_values shape: {tuple(pixel_values.shape)}")
-        print(f"[INFO] image_grid_thw shape: {tuple(image_grid_thw.shape)}")
+        input_ids, attention_mask, pixel_values, image_grid_thw = build_qwen_export_inputs(vlm_interface)
 
     print("[INFO] Converting VLM backbone to OpenVINO IR...")
     try:

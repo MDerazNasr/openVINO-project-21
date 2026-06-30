@@ -1,0 +1,98 @@
+name: VLM ONNX Export Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_vlm:
+        description: HuggingFace model id or local path for the real VLM checkpoint.
+        required: false
+        default: "unitreerobotics/Unifolm-VLM-Base"
+      attn_implementation:
+        description: Transformers attention implementation. eager is safest for CPU/export.
+        required: false
+        default: "eager"
+
+jobs:
+  export-vlm-onnx:
+    runs-on: self-hosted
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Python and dependency inventory
+        shell: powershell
+        run: |
+          python --version
+          python -m pip install --upgrade pip
+          python -m pip install openvino numpy torch torchvision onnx omegaconf diffusers transformers accelerate safetensors pillow qwen-vl-utils
+          python -c "import openvino as ov, torch, transformers, onnx; print('OpenVINO', ov.__version__); print('torch', torch.__version__); print('transformers', transformers.__version__); print('onnx', onnx.__version__); print('devices', ov.Core().available_devices)"
+
+      - name: Prepare UnifoLM source
+        shell: powershell
+        run: |
+          $src = Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla\src\unifolm_vla"
+          if (!(Test-Path $src)) {
+            Write-Host "UnifoLM source missing from checkout; downloading source archive."
+            $target = Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla"
+            $zip = Join-Path $env:RUNNER_TEMP "unifolm-vla.zip"
+            $extract = Join-Path $env:RUNNER_TEMP "unifolm-vla-src"
+            New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
+            Invoke-WebRequest -Uri "https://github.com/unitreerobotics/unifolm-vla/archive/refs/heads/main.zip" -OutFile $zip
+            if (Test-Path $extract) { Remove-Item $extract -Recurse -Force }
+            Expand-Archive -Path $zip -DestinationPath $extract -Force
+            $expanded = Get-ChildItem $extract -Directory | Select-Object -First 1
+            if (Test-Path $target) { Remove-Item $target -Recurse -Force }
+            Move-Item $expanded.FullName $target
+          }
+          $patchRoot = Join-Path $env:GITHUB_WORKSPACE "export_tests\vendor_patches\unifolm_vla"
+          $sourceRoot = Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla\src\unifolm_vla"
+          if (Test-Path $patchRoot) {
+            Copy-Item (Join-Path $patchRoot "*") $sourceRoot -Recurse -Force
+          }
+          Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE "openvino-vla\unifolm-vla\src\unifolm_vla") | Select-Object Name
+
+      - name: Run ONNX export
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path benchmark_outputs | Out-Null
+          New-Item -ItemType Directory -Force -Path artifacts\onnx | Out-Null
+          $baseVlm = "${{ github.event.inputs.base_vlm }}"
+          $attnImplementation = "${{ github.event.inputs.attn_implementation }}"
+          $log = "benchmark_outputs\vlm_onnx_export.log"
+          Write-Host "base_vlm=$baseVlm"
+          Write-Host "attn_implementation=$attnImplementation"
+          cmd /c "python export_tests\export_qwen_vlm_onnx.py --base-vlm ""$baseVlm"" --attn-implementation ""$attnImplementation"" > benchmark_outputs\vlm_onnx_export.log 2>&1"
+          $exitCode = $LASTEXITCODE
+          Get-Content $log
+          if ($exitCode -ne 0) {
+            Write-Error "VLM ONNX export failed with exit code $exitCode"
+            exit $exitCode
+          }
+
+      - name: Inspect ONNX artifact
+        if: success()
+        shell: powershell
+        run: |
+          Get-ChildItem artifacts\onnx -Recurse -Force | Select-Object FullName, Length
+          @'
+          from pathlib import Path
+          import onnx
+
+          path = Path("artifacts/onnx/qwen_vlm_backbone.onnx")
+          print("onnx_exists", path.exists(), "onnx_bytes", path.stat().st_size if path.exists() else None)
+          model = onnx.load(str(path), load_external_data=False)
+          print("graph_inputs", [i.name for i in model.graph.input])
+          print("graph_outputs", [o.name for o in model.graph.output])
+          print("node_count", len(model.graph.node))
+          '@ | python - *>&1 | Tee-Object -FilePath benchmark_outputs\vlm_onnx_inspect.log
+
+      - name: Upload ONNX export outputs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vlm-onnx-export-check
+          path: |
+            benchmark_outputs/
+            artifacts/onnx/
