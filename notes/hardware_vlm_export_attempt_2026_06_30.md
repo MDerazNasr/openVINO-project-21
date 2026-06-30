@@ -207,6 +207,48 @@ Interpretation:
 - Full end-to-end VLA latency is now closer, but still needs a validated handoff from the VLM output to the DiT `vl_embs` input. The exported VLM output is `[1, 92, 3584]`, while the current DiT benchmark fixture uses synthetic `vl_embs` shaped `[1, 512, 2048]`. We need to identify the real projection/selection step between VLM hidden states and DiT conditioning before claiming full VLA latency.
 - We should not simply add the two numbers until we verify output shape/semantics and data movement.
 
+## VLM-Compatible DiT Benchmark Update
+
+Workflow run:
+
+- `Intel Hardware Benchmark`
+- Run: `https://github.com/MDerazNasr/openVINO-project-21/actions/runs/28466447460`
+- Artifact: `https://github.com/MDerazNasr/openVINO-project-21/actions/runs/28466447460/artifacts/7989865577`
+
+Why this run was needed:
+
+- The original DiT benchmark used synthetic `vl_embs` shaped `[1, 512, 2048]`.
+- The real VLM IR outputs `last_hidden_state` shaped `[1, 92, 3584]`.
+- The standalone DiT converters bypass the full `Unifolm_VLA` framework, so they do not automatically set `cross_attention_dim` from the Qwen model hidden size.
+- We added configurable `VLA_VL_SEQ_LEN` and `VLA_VL_DIM` support and forced DiT IR regeneration with `vl_seq_len=92`, `vl_dim=3584`.
+
+Generated DiT IR:
+
+- VLM conditioning shape: `seq_len=92`, `hidden_dim=3584`
+- DiT parameters: `588,135,424`
+- Single-step `.bin`: `1,199,096,776` bytes
+- Fused-loop `.bin`: `1,199,096,816` bytes
+
+VLM-compatible DiT latency:
+
+| Device | Single Step Mean | Python Loop Mean | Fused Loop Mean | Fused Speedup | Fused Chunks/s | Status |
+|---|---:|---:|---:|---:|---:|---|
+| CPU | `224.95 ms` | `897.70 ms` | `770.06 ms` | `1.17x` | `1.30` | ok |
+| GPU | `14.77 ms` | `59.06 ms` | `52.45 ms` | `1.13x` | `19.07` | ok |
+| NPU | n/a | n/a | n/a | n/a | n/a | skipped |
+
+Component-level GPU estimate:
+
+- VLM-only GPU mean: `207.07 ms`
+- VLM-compatible fused DiT GPU mean: `52.45 ms`
+- Simple component sum: `~259.52 ms`
+
+Important caveat:
+
+- This is not yet a true end-to-end VLA runtime because we have not validated the exact runtime handoff, memory ownership, or semantic preprocessing between the VLM output and DiT input.
+- It is a useful component-level estimate and strongly suggests the VLM dominates total latency.
+- The optional node-profiling step failed because `profile_dit_workload.py` still had the old `2048` fixture hardcoded. The benchmark itself passed; profiling was patched afterward to use `VLA_VL_SEQ_LEN` and `VLA_VL_DIM`.
+
 ## Presentation Wording
 
 Short version:

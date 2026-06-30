@@ -150,6 +150,12 @@ jobs:
         continue-on-error: true
         shell: powershell
         run: |
+          $vlSeqLen = "${{ github.event.inputs.vl_seq_len }}"
+          $vlDim = "${{ github.event.inputs.vl_dim }}"
+          if ([string]::IsNullOrWhiteSpace($vlSeqLen)) { $vlSeqLen = "512" }
+          if ([string]::IsNullOrWhiteSpace($vlDim)) { $vlDim = "2048" }
+          $env:VLA_VL_SEQ_LEN = $vlSeqLen
+          $env:VLA_VL_DIM = $vlDim
           python export_tests\openvino_node_profile.py --device GPU --iterations 10
 
       - name: Check VTune availability

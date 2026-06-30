@@ -19,8 +19,8 @@ SINGLE_IR = IR_DIR / "single_step_dit.xml"
 FUSED_IR = IR_DIR / "fused_loop_dit.xml"
 
 DEFAULT_BATCH = 1
-DEFAULT_SEQ_LEN = 512
-DEFAULT_VL_DIM = 2048
+DEFAULT_SEQ_LEN = int(os.environ.get("VLA_VL_SEQ_LEN", "512"))
+DEFAULT_VL_DIM = int(os.environ.get("VLA_VL_DIM", "2048"))
 DEFAULT_ACTION_HORIZON = int(os.environ.get("VLA_ACTION_HORIZON", "25"))
 DEFAULT_ACTION_DIM = int(os.environ.get("VLA_ACTION_DIM", "23"))
 DEFAULT_STATE_DIM = int(os.environ.get("VLA_STATE_DIM", "23"))
