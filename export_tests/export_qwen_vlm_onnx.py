@@ -73,6 +73,7 @@ def main():
         output_names=["last_hidden_state"],
         opset_version=args.opset,
         do_constant_folding=True,
+        dynamo=False,
     )
 
     try:
