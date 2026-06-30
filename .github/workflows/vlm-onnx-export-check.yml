@@ -129,12 +129,17 @@ jobs:
               print(name, out.get_partial_shape(), out.get_element_type())
           '@ | python - *>&1 | Tee-Object -FilePath benchmark_outputs\vlm_openvino_ir_inspect.log
 
-      - name: Upload ONNX export outputs
+      - name: Run VLM OpenVINO benchmark
+        if: success()
+        shell: powershell
+        run: |
+          python export_tests\benchmark_qwen_vlm_openvino.py
+          Get-Content benchmark_outputs\qwen_vlm_openvino_benchmark.md
+
+      - name: Upload VLM benchmark reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: vlm-onnx-export-check
           path: |
             benchmark_outputs/
-            artifacts/openvino_ir/qwen_vlm_backbone_from_onnx.xml
-            artifacts/openvino_ir/qwen_vlm_backbone_from_onnx.bin
