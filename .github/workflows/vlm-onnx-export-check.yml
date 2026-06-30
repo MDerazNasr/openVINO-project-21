@@ -26,8 +26,8 @@ jobs:
         run: |
           python --version
           python -m pip install --upgrade pip
-          python -m pip install openvino numpy torch torchvision onnx omegaconf diffusers transformers accelerate safetensors pillow qwen-vl-utils
-          python -c "import openvino as ov, torch, transformers, onnx; print('OpenVINO', ov.__version__); print('torch', torch.__version__); print('transformers', transformers.__version__); print('onnx', onnx.__version__); print('devices', ov.Core().available_devices)"
+          python -m pip install openvino numpy torch torchvision onnx onnxscript omegaconf diffusers transformers accelerate safetensors pillow qwen-vl-utils
+          python -c "import openvino as ov, torch, transformers, onnx, onnxscript; print('OpenVINO', ov.__version__); print('torch', torch.__version__); print('transformers', transformers.__version__); print('onnx', onnx.__version__); print('onnxscript', onnxscript.__version__); print('devices', ov.Core().available_devices)"
 
       - name: Prepare UnifoLM source
         shell: powershell
