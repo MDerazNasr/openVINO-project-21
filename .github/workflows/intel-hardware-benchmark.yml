@@ -162,11 +162,19 @@ jobs:
         shell: powershell
         run: |
           Write-Host "run_vtune input: ${{ github.event.inputs.run_vtune }}"
+          $candidatePaths = @(
+            "C:\Program Files (x86)\Intel\oneAPI\vtune\latest\bin64\vtune.exe",
+            "C:\Program Files\Intel\oneAPI\vtune\latest\bin64\vtune.exe"
+          )
           $vtune = Get-Command vtune -ErrorAction SilentlyContinue
           $amplxe = Get-Command amplxe-cl -ErrorAction SilentlyContinue
           if ($vtune) {
             Write-Host "vtune found at $($vtune.Source)"
             vtune -version
+          } elseif ($candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1) {
+            $vtunePath = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+            Write-Host "vtune found at $vtunePath"
+            & $vtunePath -version
           } elseif ($amplxe) {
             Write-Host "amplxe-cl found at $($amplxe.Source)"
             amplxe-cl -version
@@ -179,26 +187,37 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_vtune == 'true' }}
         shell: powershell
         run: |
-          $vtune = Get-Command vtune -ErrorAction SilentlyContinue
-          if (!$vtune) { throw "VTune CLI is not available on PATH; cannot run GPU Hotspots." }
+          $candidatePaths = @(
+            "C:\Program Files (x86)\Intel\oneAPI\vtune\latest\bin64\vtune.exe",
+            "C:\Program Files\Intel\oneAPI\vtune\latest\bin64\vtune.exe"
+          )
+          $vtuneCommand = Get-Command vtune -ErrorAction SilentlyContinue
+          if ($vtuneCommand) {
+            $vtunePath = $vtuneCommand.Source
+          } else {
+            $vtunePath = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (!$vtunePath) { throw "VTune CLI is not available on PATH or common oneAPI install paths; cannot run GPU Hotspots." }
+          Write-Host "Using VTune: $vtunePath"
+          & $vtunePath -version
 
           $iters = "${{ github.event.inputs.vtune_iterations }}"
           if ([string]::IsNullOrWhiteSpace($iters)) { $iters = "50" }
 
           New-Item -ItemType Directory -Force -Path benchmark_outputs | Out-Null
 
-          vtune -collect gpu-hotspots `
+          & $vtunePath -collect gpu-hotspots `
             -result-dir benchmark_outputs\vtune_gpu_fused `
             -- python export_tests\profile_dit_workload.py --device GPU --mode fused --iterations $iters --warmup 5 --output-json benchmark_outputs\dit_profile_fused.json
-          vtune -report summary `
+          & $vtunePath -report summary `
             -r benchmark_outputs\vtune_gpu_fused `
             -format text `
             -report-output benchmark_outputs\vtune_gpu_fused_summary.txt
 
-          vtune -collect gpu-hotspots `
+          & $vtunePath -collect gpu-hotspots `
             -result-dir benchmark_outputs\vtune_gpu_python_loop `
             -- python export_tests\profile_dit_workload.py --device GPU --mode python_loop --iterations $iters --warmup 5 --output-json benchmark_outputs\dit_profile_python_loop.json
-          vtune -report summary `
+          & $vtunePath -report summary `
             -r benchmark_outputs\vtune_gpu_python_loop `
             -format text `
             -report-output benchmark_outputs\vtune_gpu_python_loop_summary.txt
