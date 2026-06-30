@@ -56,6 +56,27 @@ class MockInterface:
 def parse_args():
     parser = argparse.ArgumentParser(description="Convert Qwen2.5-VL feature extractor to OpenVINO IR.")
     parser.add_argument(
+        "--base-vlm",
+        default=os.environ.get("UNIFOLM_BASE_VLM"),
+        help="HuggingFace model id or local path for the real Qwen/UnifoLM VLM checkpoint.",
+    )
+    parser.add_argument(
+        "--attn-implementation",
+        default=os.environ.get("UNIFOLM_ATTN_IMPLEMENTATION", "eager"),
+        help="Attention implementation to request from transformers. Use eager for CPU/export-friendly conversion.",
+    )
+    parser.add_argument(
+        "--torch-dtype",
+        default=os.environ.get("UNIFOLM_TORCH_DTYPE", "float32"),
+        choices=["auto", "float32", "float16", "bfloat16"],
+        help="Torch dtype for loading the VLM before OpenVINO conversion.",
+    )
+    parser.add_argument(
+        "--device-map",
+        default=os.environ.get("UNIFOLM_DEVICE_MAP", ""),
+        help="Optional transformers device_map. Leave empty for normal CPU loading on the Windows runner.",
+    )
+    parser.add_argument(
         "--allow-mock",
         action="store_true",
         help="Allow fallback to a tiny dummy model for structural export testing. Do not use for latency claims.",
@@ -75,6 +96,15 @@ def main():
     
     config_path = UNIFOLM_SRC / "unifolm_vla" / "config" / "training" / "unifolm_vla_train.yaml"
     config = OmegaConf.load(config_path)
+    if args.base_vlm:
+        config.framework.qwenvl.base_vlm = args.base_vlm
+    config.framework.qwenvl.attn_implementation = args.attn_implementation
+    config.framework.qwenvl.torch_dtype = args.torch_dtype
+    config.framework.qwenvl.device_map = args.device_map
+    print(f"[INFO] base_vlm: {config.framework.qwenvl.base_vlm}")
+    print(f"[INFO] attn_implementation: {config.framework.qwenvl.attn_implementation}")
+    print(f"[INFO] torch_dtype: {config.framework.qwenvl.torch_dtype}")
+    print(f"[INFO] device_map: {config.framework.qwenvl.device_map or '<none>'}")
     
     try:
         vlm_interface = get_qwen2_5_interface(config=config)

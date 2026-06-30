@@ -7,6 +7,14 @@ on:
         description: Allow mock VLM export. Keep false for real benchmark work.
         required: false
         default: "false"
+      base_vlm:
+        description: HuggingFace model id or local path for the real VLM checkpoint.
+        required: false
+        default: "unitreerobotics/Unifolm-VLM-Base"
+      attn_implementation:
+        description: Transformers attention implementation. eager is safest for CPU/export.
+        required: false
+        default: "eager"
 
 jobs:
   export-vlm:
@@ -61,11 +69,15 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path benchmark_outputs | Out-Null
           $allowMock = "${{ github.event.inputs.allow_mock }}"
+          $baseVlm = "${{ github.event.inputs.base_vlm }}"
+          $attnImplementation = "${{ github.event.inputs.attn_implementation }}"
           $log = "benchmark_outputs\vlm_export.log"
+          Write-Host "base_vlm=$baseVlm"
+          Write-Host "attn_implementation=$attnImplementation"
           if ($allowMock -eq "true") {
-            cmd /c "python export_tests\convert_qwen_vlm.py --allow-mock > benchmark_outputs\vlm_export.log 2>&1"
+            cmd /c "python export_tests\convert_qwen_vlm.py --allow-mock --base-vlm ""$baseVlm"" --attn-implementation ""$attnImplementation"" > benchmark_outputs\vlm_export.log 2>&1"
           } else {
-            cmd /c "python export_tests\convert_qwen_vlm.py > benchmark_outputs\vlm_export.log 2>&1"
+            cmd /c "python export_tests\convert_qwen_vlm.py --base-vlm ""$baseVlm"" --attn-implementation ""$attnImplementation"" > benchmark_outputs\vlm_export.log 2>&1"
           }
           $exitCode = $LASTEXITCODE
           Get-Content $log
