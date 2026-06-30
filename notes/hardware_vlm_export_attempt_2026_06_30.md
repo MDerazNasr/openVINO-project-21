@@ -149,15 +149,66 @@ Result:
 - ONNX export succeeded.
 - ONNX inspection succeeded.
 
-Current operational issue:
+Operational issue found:
 
 - Uploading the full ONNX artifact through GitHub Actions was too slow/large and left the self-hosted runner stuck in the upload step.
-- The next workflow revision converts the ONNX model to OpenVINO IR on the runner before artifact upload and uploads only logs plus the OpenVINO IR.
+- The runner was recovered by stopping the stale runner session and reconnecting it.
+- The workflow was changed to convert ONNX to OpenVINO IR on the runner, benchmark the generated IR in the same job, and upload only small benchmark reports.
 
-This is important because ONNX export appears to be a viable route around the direct OpenVINO PyTorch frontend blocker. The remaining test is whether OpenVINO can ingest the generated ONNX and produce a usable IR for VLM benchmarking.
+This is important because ONNX export is now a viable route around the direct OpenVINO PyTorch frontend blocker.
+
+## ONNX-to-OpenVINO VLM Benchmark Update
+
+Workflow run:
+
+- `VLM ONNX Export Check`
+- Run: `https://github.com/MDerazNasr/openVINO-project-21/actions/runs/28464075911`
+- Artifact: `https://github.com/MDerazNasr/openVINO-project-21/actions/runs/28464075911/artifacts/7989199564`
+
+What passed:
+
+- Real UnifoLM VLM checkpoint loaded from `unitreerobotics/Unifolm-VLM-Base`.
+- ONNX export passed.
+- ONNX inspection passed.
+- ONNX-to-OpenVINO conversion passed.
+- OpenVINO IR inspection passed.
+- VLM-only OpenVINO benchmark passed on CPU and GPU.
+
+Generated VLM IR:
+
+- XML bytes: `4,844,170`
+- BIN bytes: `15,494,478,376`
+
+Benchmark input shapes:
+
+| Input | Shape | Type |
+|---|---:|---|
+| `input_ids` | `[1, 92]` | `int64` |
+| `attention_mask` | `[1, 92]` | `int64` |
+| pixel tensor | `[256, 1176]` | `float32` |
+
+Output shape:
+
+- `last_hidden_state`: `[1, 92, 3584]`
+
+Latency:
+
+| Device | Mean | Median | P95 | Compile | Status |
+|---|---:|---:|---:|---:|---|
+| CPU | `7224.91 ms` | `3748.25 ms` | `17543.91 ms` | `28315.98 ms` | ok |
+| GPU | `207.07 ms` | `206.18 ms` | `209.55 ms` | `52371.15 ms` | ok |
+| NPU | n/a | n/a | n/a | n/a | skipped |
+
+Interpretation:
+
+- We now have a real VLM-only hardware benchmark.
+- The VLM is much heavier than the fused DiT action head on GPU (`~207 ms` VLM vs `~54 ms` fused DiT), matching the mentor's expectation that the VLM may dominate full VLA latency.
+- The CPU VLM benchmark has high variance and should be treated as a rough baseline; the GPU result is much more stable.
+- Full end-to-end VLA latency is now closer, but still needs a validated handoff from the VLM output to the DiT `vl_embs` input. The exported VLM output is `[1, 92, 3584]`, while the current DiT benchmark fixture uses synthetic `vl_embs` shaped `[1, 512, 2048]`. We need to identify the real projection/selection step between VLM hidden states and DiT conditioning before claiming full VLA latency.
+- We should not simply add the two numbers until we verify output shape/semantics and data movement.
 
 ## Presentation Wording
 
 Short version:
 
-"I moved the VLM blocker forward. It is no longer just a missing artifact. I tried the real UnifoLM VLM checkpoint, made the export path configurable, removed CUDA-only assumptions, and generated valid Qwen processor inputs. The real export now fails in OpenVINO conversion of Qwen2.5-VL's visual window-indexing operations, specifically unsupported `aten::index`, `aten::unbind`, and list-unpack patterns. I am not reporting fake full-VLA latency from the tiny placeholder artifact because that would be misleading."
+"I moved the VLM blocker forward. It is no longer just a missing artifact. The direct PyTorch-to-OpenVINO conversion path failed on Qwen2.5-VL visual indexing/list operations, so I used ONNX as a bridge. With the real UnifoLM VLM checkpoint, ONNX export now succeeds, ONNX-to-OpenVINO conversion succeeds, and the real VLM IR benchmarks on Intel CPU/GPU. The GPU VLM latency is about 207 ms, which suggests the VLM is likely the dominant part of end-to-end VLA latency compared with the fused DiT action head at about 54 ms. I am still not claiming full end-to-end VLA latency until I validate the VLM-output-to-DiT-input handoff."
