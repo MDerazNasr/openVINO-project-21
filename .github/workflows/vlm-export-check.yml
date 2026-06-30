@@ -61,10 +61,17 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path benchmark_outputs | Out-Null
           $allowMock = "${{ github.event.inputs.allow_mock }}"
+          $log = "benchmark_outputs\vlm_export.log"
           if ($allowMock -eq "true") {
-            python export_tests\convert_qwen_vlm.py --allow-mock *>&1 | Tee-Object -FilePath benchmark_outputs\vlm_export.log
+            python export_tests\convert_qwen_vlm.py --allow-mock *> $log
           } else {
-            python export_tests\convert_qwen_vlm.py *>&1 | Tee-Object -FilePath benchmark_outputs\vlm_export.log
+            python export_tests\convert_qwen_vlm.py *> $log
+          }
+          $exitCode = $LASTEXITCODE
+          Get-Content $log
+          if ($exitCode -ne 0) {
+            Write-Error "VLM export failed with exit code $exitCode"
+            exit $exitCode
           }
 
       - name: Smoke-load exported VLM IR
