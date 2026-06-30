@@ -23,6 +23,11 @@ def main():
     
     config_path = UNIFOLM_SRC / "unifolm_vla" / "config" / "training" / "unifolm_vla_train.yaml"
     config = OmegaConf.load(config_path)
+    seq_len = int(os.environ.get("VLA_VL_SEQ_LEN", "512"))
+    vl_dim = int(os.environ.get("VLA_VL_DIM", str(config.framework.action_model.diffusion_model_cfg.cross_attention_dim)))
+    config.framework.action_model.vl_hidden_dim = vl_dim
+    config.framework.action_model.diffusion_model_cfg.cross_attention_dim = vl_dim
+    print(f"[INFO] VLM conditioning shape: seq_len={seq_len}, hidden_dim={vl_dim}")
     
     # Use v2 natively patched model
     action_model = FlowmatchingActionHead_v2(full_config=config)
@@ -33,8 +38,6 @@ def main():
 
     print(f"[INFO] Creating inputs for {num_steps}-step fused loop...")
     batch_size = 1
-    seq_len = 512          
-    vl_dim = 2048          
     action_horizon = NUM_ACTIONS_CHUNK
     action_dim = ACTION_DIM
     state_dim = PROPRIO_DIM

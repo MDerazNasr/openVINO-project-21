@@ -26,6 +26,11 @@ def main():
     # Load default training config.
     config_path = UNIFOLM_SRC / "unifolm_vla" / "config" / "training" / "unifolm_vla_train.yaml"
     config = OmegaConf.load(config_path)
+    seq_len = int(os.environ.get("VLA_VL_SEQ_LEN", "512"))
+    vl_dim = int(os.environ.get("VLA_VL_DIM", str(config.framework.action_model.diffusion_model_cfg.cross_attention_dim)))
+    config.framework.action_model.vl_hidden_dim = vl_dim
+    config.framework.action_model.diffusion_model_cfg.cross_attention_dim = vl_dim
+    print(f"[INFO] VLM conditioning shape: seq_len={seq_len}, hidden_dim={vl_dim}")
     
     # Instantiate the action model (DiT Flowmatching head)
     # We use config to avoid loading huge weights for this test
@@ -36,8 +41,6 @@ def main():
 
     print("[INFO] Creating dummy inputs (using traced LIBERO dimensions)...")
     batch_size = 1
-    seq_len = 512          # Qwen output seq_len
-    vl_dim = 2048          # Qwen hidden dimension (vl_hidden_dim)
     action_horizon = NUM_ACTIONS_CHUNK
     action_dim = ACTION_DIM
     state_dim = PROPRIO_DIM

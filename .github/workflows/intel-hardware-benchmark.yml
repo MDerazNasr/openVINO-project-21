@@ -16,6 +16,18 @@ on:
         description: Number of profiled workload iterations per VTune run
         required: false
         default: "50"
+      force_regenerate_dit:
+        description: Regenerate DiT IRs instead of reusing copied artifacts
+        required: false
+        default: "false"
+      vl_seq_len:
+        description: VLM sequence length to use for DiT conditioning benchmark
+        required: false
+        default: "512"
+      vl_dim:
+        description: VLM hidden size to use for DiT cross-attention benchmark
+        required: false
+        default: "2048"
   push:
     branches:
       - main
@@ -85,13 +97,26 @@ jobs:
             Copy-Item (Join-Path $src "*.bin") $dst -Force -ErrorAction SilentlyContinue
             Copy-Item (Join-Path $src "*.xml") $dst -Force -ErrorAction SilentlyContinue
           }
+          if ("${{ github.event.inputs.force_regenerate_dit }}" -eq "true") {
+            Write-Host "force_regenerate_dit=true; removing copied DiT IRs before regeneration."
+            Remove-Item (Join-Path $dst "single_step_dit.*") -Force -ErrorAction SilentlyContinue
+            Remove-Item (Join-Path $dst "fused_loop_dit.*") -Force -ErrorAction SilentlyContinue
+          }
+          $vlSeqLen = "${{ github.event.inputs.vl_seq_len }}"
+          $vlDim = "${{ github.event.inputs.vl_dim }}"
+          if ([string]::IsNullOrWhiteSpace($vlSeqLen)) { $vlSeqLen = "512" }
+          if ([string]::IsNullOrWhiteSpace($vlDim)) { $vlDim = "2048" }
           Get-ChildItem $dst | Select-Object Name, Length
           if (!(Test-Path (Join-Path $dst "single_step_dit.bin"))) {
             Write-Host "single_step_dit.bin missing; regenerating single-step IR."
+            $env:VLA_VL_SEQ_LEN = $vlSeqLen
+            $env:VLA_VL_DIM = $vlDim
             python export_tests\convert_single_step_dit.py
           }
           if (!(Test-Path (Join-Path $dst "fused_loop_dit.bin"))) {
             Write-Host "fused_loop_dit.bin missing; regenerating fused-loop IR."
+            $env:VLA_VL_SEQ_LEN = $vlSeqLen
+            $env:VLA_VL_DIM = $vlDim
             python export_tests\convert_fused_loop_dit.py
           }
           Get-ChildItem $dst | Select-Object Name, Length
@@ -101,11 +126,23 @@ jobs:
       - name: Run multi-device benchmark
         shell: powershell
         run: |
+          $vlSeqLen = "${{ github.event.inputs.vl_seq_len }}"
+          $vlDim = "${{ github.event.inputs.vl_dim }}"
+          if ([string]::IsNullOrWhiteSpace($vlSeqLen)) { $vlSeqLen = "512" }
+          if ([string]::IsNullOrWhiteSpace($vlDim)) { $vlDim = "2048" }
+          $env:VLA_VL_SEQ_LEN = $vlSeqLen
+          $env:VLA_VL_DIM = $vlDim
           python export_tests\benchmark_fused_vs_single_step_all_devices.py
 
       - name: Run deep hardware benchmark
         shell: powershell
         run: |
+          $vlSeqLen = "${{ github.event.inputs.vl_seq_len }}"
+          $vlDim = "${{ github.event.inputs.vl_dim }}"
+          if ([string]::IsNullOrWhiteSpace($vlSeqLen)) { $vlSeqLen = "512" }
+          if ([string]::IsNullOrWhiteSpace($vlDim)) { $vlDim = "2048" }
+          $env:VLA_VL_SEQ_LEN = $vlSeqLen
+          $env:VLA_VL_DIM = $vlDim
           python export_tests\deep_hardware_benchmark.py
           Get-Content benchmark_outputs\deep_hardware_benchmark.md
 
