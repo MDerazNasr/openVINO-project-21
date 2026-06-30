@@ -1,0 +1,97 @@
+name: VTune Diagnostic
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose-vtune:
+    runs-on: [self-hosted, Windows]
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Locate Intel VTune
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          New-Item -ItemType Directory -Force -Path benchmark_outputs | Out-Null
+          $out = "benchmark_outputs\vtune_diagnostic.txt"
+
+          function Write-Both($message) {
+            Write-Host $message
+            Add-Content -Path $out -Value $message
+          }
+
+          if (Test-Path $out) { Remove-Item $out -Force }
+
+          Write-Both "=== Environment ==="
+          Write-Both "Computer: $env:COMPUTERNAME"
+          Write-Both "User: $env:USERNAME"
+          Write-Both "Runner workspace: $env:GITHUB_WORKSPACE"
+          Write-Both "PATH:"
+          $env:PATH.Split(";") | ForEach-Object { Write-Both "  $_" }
+
+          Write-Both ""
+          Write-Both "=== PATH command lookup ==="
+          foreach ($cmd in @("vtune", "vtune.exe", "amplxe-cl", "amplxe-cl.exe")) {
+            $found = Get-Command $cmd -ErrorAction SilentlyContinue
+            if ($found) {
+              Write-Both "$cmd -> $($found.Source)"
+              & $found.Source -version 2>&1 | ForEach-Object { Write-Both "  $_" }
+            } else {
+              Write-Both "$cmd -> not found on PATH"
+            }
+          }
+
+          Write-Both ""
+          Write-Both "=== Common Intel installation roots ==="
+          $roots = @(
+            "C:\Program Files (x86)\Intel\oneAPI",
+            "C:\Program Files\Intel\oneAPI",
+            "C:\Program Files (x86)\IntelSWTools",
+            "C:\Program Files\IntelSWTools",
+            "C:\Program Files (x86)\Intel",
+            "C:\Program Files\Intel"
+          )
+          foreach ($root in $roots) {
+            if (Test-Path $root) {
+              Write-Both "FOUND root: $root"
+              Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
+                Select-Object -First 40 |
+                ForEach-Object { Write-Both "  dir: $($_.FullName)" }
+            } else {
+              Write-Both "missing root: $root"
+            }
+          }
+
+          Write-Both ""
+          Write-Both "=== Recursive VTune candidate search ==="
+          $searchRoots = $roots | Where-Object { Test-Path $_ }
+          $patterns = @("vtune.exe", "amplxe-cl.exe", "setvars.bat", "vars.bat")
+          foreach ($searchRoot in $searchRoots) {
+            foreach ($pattern in $patterns) {
+              Write-Both "Searching $searchRoot for $pattern"
+              Get-ChildItem -Path $searchRoot -Filter $pattern -Recurse -File -ErrorAction SilentlyContinue |
+                Select-Object -First 60 |
+                ForEach-Object { Write-Both "  $($_.FullName)" }
+            }
+          }
+
+          Write-Both ""
+          Write-Both "=== Package/install hints ==="
+          $winget = Get-Command winget -ErrorAction SilentlyContinue
+          if ($winget) {
+            Write-Both "winget found: $($winget.Source)"
+            winget list --name "Intel VTune" 2>&1 | ForEach-Object { Write-Both "  $_" }
+          } else {
+            Write-Both "winget not found"
+          }
+
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vtune-diagnostic
+          path: benchmark_outputs/
