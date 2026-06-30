@@ -63,9 +63,9 @@ jobs:
           $allowMock = "${{ github.event.inputs.allow_mock }}"
           $log = "benchmark_outputs\vlm_export.log"
           if ($allowMock -eq "true") {
-            python export_tests\convert_qwen_vlm.py --allow-mock *> $log
+            cmd /c "python export_tests\convert_qwen_vlm.py --allow-mock > benchmark_outputs\vlm_export.log 2>&1"
           } else {
-            python export_tests\convert_qwen_vlm.py *> $log
+            cmd /c "python export_tests\convert_qwen_vlm.py > benchmark_outputs\vlm_export.log 2>&1"
           }
           $exitCode = $LASTEXITCODE
           Get-Content $log
