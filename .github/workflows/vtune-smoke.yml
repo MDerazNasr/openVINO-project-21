@@ -1,0 +1,99 @@
+name: VTune Smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  vtune-smoke:
+    runs-on: [self-hosted, Windows]
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Prepare smoke scripts
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path benchmark_outputs | Out-Null
+          @'
+          import math
+          import time
+
+          total = 0.0
+          start = time.perf_counter()
+          while time.perf_counter() - start < 3.0:
+              for i in range(10000):
+                  total += math.sin(i) * math.cos(i)
+          print("cpu_smoke_total", total)
+          '@ | Set-Content -Path benchmark_outputs\vtune_cpu_smoke.py -Encoding UTF8
+
+          @'
+          import numpy as np
+          import openvino as ov
+
+          core = ov.Core()
+          print("devices", core.available_devices)
+          if "GPU" not in core.available_devices:
+              raise SystemExit("GPU not available")
+
+          param = ov.opset8.parameter([1, 1024], dtype=np.float32, name="x")
+          const = ov.opset8.constant(np.ones((1024, 1024), dtype=np.float32))
+          matmul = ov.opset8.matmul(param, const, False, False)
+          model = ov.Model([matmul], [param], "tiny_matmul")
+          compiled = core.compile_model(model, "GPU")
+          x = np.ones((1, 1024), dtype=np.float32)
+          for _ in range(30):
+              compiled([x])
+          print("gpu_smoke_done")
+          '@ | Set-Content -Path benchmark_outputs\vtune_gpu_openvino_smoke.py -Encoding UTF8
+
+      - name: Locate VTune
+        id: vtune
+        shell: powershell
+        run: |
+          $candidatePaths = @(
+            "C:\Program Files (x86)\Intel\oneAPI\vtune\latest\bin64\vtune.exe",
+            "C:\Program Files\Intel\oneAPI\vtune\latest\bin64\vtune.exe"
+          )
+          $vtuneCommand = Get-Command vtune -ErrorAction SilentlyContinue
+          if ($vtuneCommand) {
+            $vtunePath = $vtuneCommand.Source
+          } else {
+            $vtunePath = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (!$vtunePath) { throw "VTune not found." }
+          Write-Host "VTUNE_PATH=$vtunePath"
+          "VTUNE_PATH=$vtunePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          & $vtunePath -version
+
+      - name: VTune CPU hotspots smoke
+        shell: powershell
+        run: |
+          & "$env:VTUNE_PATH" -collect hotspots `
+            -result-dir benchmark_outputs\vtune_cpu_smoke `
+            -- python benchmark_outputs\vtune_cpu_smoke.py
+          & "$env:VTUNE_PATH" -report summary `
+            -r benchmark_outputs\vtune_cpu_smoke `
+            -format text `
+            -report-output benchmark_outputs\vtune_cpu_smoke_summary.txt
+          Get-Content benchmark_outputs\vtune_cpu_smoke_summary.txt
+
+      - name: VTune GPU hotspots OpenVINO smoke
+        shell: powershell
+        run: |
+          & "$env:VTUNE_PATH" -collect gpu-hotspots `
+            -result-dir benchmark_outputs\vtune_gpu_openvino_smoke `
+            -- python benchmark_outputs\vtune_gpu_openvino_smoke.py
+          & "$env:VTUNE_PATH" -report summary `
+            -r benchmark_outputs\vtune_gpu_openvino_smoke `
+            -format text `
+            -report-output benchmark_outputs\vtune_gpu_openvino_smoke_summary.txt
+          Get-Content benchmark_outputs\vtune_gpu_openvino_smoke_summary.txt
+
+      - name: Upload smoke outputs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vtune-smoke
+          path: benchmark_outputs/
