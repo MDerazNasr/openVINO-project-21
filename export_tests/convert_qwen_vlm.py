@@ -8,6 +8,7 @@ import sys
 import os
 from pathlib import Path
 from omegaconf import OmegaConf
+from PIL import Image
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 UNIFOLM_SRC = REPO_ROOT / "openvino-vla" / "unifolm-vla" / "src"
@@ -106,6 +107,7 @@ def main():
     print(f"[INFO] torch_dtype: {config.framework.qwenvl.torch_dtype}")
     print(f"[INFO] device_map: {config.framework.qwenvl.device_map or '<none>'}")
     
+    using_mock = False
     try:
         vlm_interface = get_qwen2_5_interface(config=config)
         wrapper = QwenVLForwardWrapper(vlm_interface).eval()
@@ -119,18 +121,27 @@ def main():
         print(f"[WARNING] Could not load full model: {e}")
         print("[WARNING] Falling back to a dummy architecture. This output is not valid for latency benchmarking.")
         wrapper = QwenVLForwardWrapper(MockInterface()).eval()
+        using_mock = True
 
     print("[INFO] Creating dummy multimodal inputs...")
-    batch_size = 1
-    seq_len = 512
-    
-    input_ids = torch.zeros((batch_size, seq_len), dtype=torch.long)
-    attention_mask = torch.ones((batch_size, seq_len), dtype=torch.long)
-    
-    # Qwen-VL pixel values and grid thw
-    # Typically [num_patches, hidden_dim] after vision encoder, but here we mock raw-ish inputs
-    pixel_values = torch.randn((1, 3, 224, 224), dtype=torch.float32)
-    image_grid_thw = torch.tensor([[1, 28, 28]], dtype=torch.long)
+    if using_mock:
+        batch_size = 1
+        seq_len = 512
+        input_ids = torch.zeros((batch_size, seq_len), dtype=torch.long)
+        attention_mask = torch.ones((batch_size, seq_len), dtype=torch.long)
+        pixel_values = torch.randn((1, 3, 224, 224), dtype=torch.float32)
+        image_grid_thw = torch.tensor([[1, 28, 28]], dtype=torch.long)
+    else:
+        image = Image.new("RGB", (224, 224), color=(127, 127, 127))
+        inputs = vlm_interface.build_qwenvl_inputs([[image]], ["move the robot arm to the target"])
+        input_ids = inputs["input_ids"]
+        attention_mask = inputs["attention_mask"]
+        pixel_values = inputs["pixel_values"].to(torch.float32)
+        image_grid_thw = inputs["image_grid_thw"]
+        print(f"[INFO] input_ids shape: {tuple(input_ids.shape)}")
+        print(f"[INFO] attention_mask shape: {tuple(attention_mask.shape)}")
+        print(f"[INFO] pixel_values shape: {tuple(pixel_values.shape)}")
+        print(f"[INFO] image_grid_thw shape: {tuple(image_grid_thw.shape)}")
 
     print("[INFO] Converting VLM backbone to OpenVINO IR...")
     try:
