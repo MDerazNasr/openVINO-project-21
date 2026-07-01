@@ -207,6 +207,16 @@ Interpretation:
 - Full end-to-end VLA latency is now closer, but still needs a validated handoff from the VLM output to the DiT `vl_embs` input. The exported VLM output is `[1, 92, 3584]`, while the current DiT benchmark fixture uses synthetic `vl_embs` shaped `[1, 512, 2048]`. We need to identify the real projection/selection step between VLM hidden states and DiT conditioning before claiming full VLA latency.
 - We should not simply add the two numbers until we verify output shape/semantics and data movement.
 
+### Persistence Note
+
+The VLM OpenVINO `.bin` is about 15.5 GB, so uploading it as a GitHub Actions artifact is impractical and previously left the self-hosted runner stuck in artifact upload.
+
+The workflow now persists the real VLM IR on the Windows runner at:
+
+`C:\Users\devcloud\openVINO-project-21-main\artifacts\openvino_ir`
+
+This lets later `Intel Hardware Benchmark` runs copy the real VLM IR into their clean GitHub Actions workspace without sending the huge weights through GitHub artifact storage.
+
 ## VLM-Compatible DiT Benchmark Update
 
 Workflow run:

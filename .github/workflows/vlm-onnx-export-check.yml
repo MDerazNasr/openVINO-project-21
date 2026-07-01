@@ -133,6 +133,16 @@ jobs:
               print(name, out.get_partial_shape(), out.get_element_type())
           '@ | python - *>&1 | Tee-Object -FilePath benchmark_outputs\vlm_openvino_ir_inspect.log
 
+      - name: Persist OpenVINO VLM IR on runner
+        if: success()
+        shell: powershell
+        run: |
+          $persistent = "C:\Users\devcloud\openVINO-project-21-main\artifacts\openvino_ir"
+          New-Item -ItemType Directory -Force -Path $persistent | Out-Null
+          Copy-Item artifacts\openvino_ir\qwen_vlm_backbone_from_onnx.xml $persistent -Force
+          Copy-Item artifacts\openvino_ir\qwen_vlm_backbone_from_onnx.bin $persistent -Force
+          Get-ChildItem $persistent -Filter "qwen_vlm_backbone_from_onnx.*" | Select-Object FullName, Length
+
       - name: Run VLM OpenVINO benchmark
         if: success()
         shell: powershell
