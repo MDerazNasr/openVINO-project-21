@@ -54,6 +54,16 @@ Update from June 23, 2026:
 - Initial OpenVINO node profile suggests the DiT GPU path is dominated by MLP `FullyConnected` / MatMul work, followed by self-attention projections. SDPA is visible, and MVN is measurable but much smaller.
 - Next profiling choice: locate/install VTune, or deepen the OpenVINO profile analysis by separating attention projections from MLP layers.
 
+Update from July 1, 2026:
+
+- The real VLM path is now exported through ONNX to OpenVINO IR using the `unitreerobotics/Unifolm-VLM-Base` checkpoint.
+- The huge VLM `.bin` artifact is persisted on the Windows runner disk instead of uploaded through GitHub Actions.
+- We now have a real OpenVINO model-chain VLA benchmark: VLM IR -> Python tensor handoff -> fused DiT IR.
+- Latest GPU model-chain result is about `278.90 ms` end-to-end, with `206.13 ms` VLM and `54.77 ms` DiT.
+- VTune is installed and working on the Intel runner.
+- A valid VTune GPU Hotspots profile was collected for the e2e VLA workload; see `notes/intel_hardware_vla_vtune_2026_07_01.md`.
+- Main next direction: split VTune profiles for VLM vs DiT vs e2e, analyze memory/offload overhead, and investigate static shapes plus zero-copy VLM-to-DiT handoff.
+
 ## What We Have Done
 
 ### 1. Runtime and Architecture Study
